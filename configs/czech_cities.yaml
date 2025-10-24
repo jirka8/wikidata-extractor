@@ -1,0 +1,43 @@
+metadata:
+  name: "Czech Major Cities"
+  description: "Extract major cities from Czech Republic"
+  version: "1.0"
+
+country:
+  wikidata_id: "Q213"
+  name: "Czech Republic"
+  language_codes: ["cs", "en"]
+
+settlement_types:
+  include:
+    - "Q515"    # city
+    - "Q3957"   # town
+
+data_fields:
+  - field: "item_id"
+    required: true
+    csv_header: "wikidata_id"
+    
+  - field: "name"
+    wikidata_property: "rdfs:label"
+    required: true
+    csv_header: "name"
+    language: "cs"
+    
+  - field: "coordinates"
+    wikidata_property: "P625"
+    required: false
+    csv_header: "latitude,longitude"
+    format: "lat_lon_split"
+    
+  - field: "postal_code"
+    wikidata_property: "P281"
+    required: false
+    csv_header: "postal_code"
+
+output:
+  filename: "czech_cities.csv"
+  directory: "./output"
+  delimiter: ","
+  encoding: "utf-8"
+  include_headers: true

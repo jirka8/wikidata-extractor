@@ -1,0 +1,72 @@
+metadata:
+  name: "English Cities"
+  description: "Extract major English cities with population data"
+  version: "1.0"
+
+country:
+  wikidata_id: "Q145"
+  name: "United Kingdom"
+  language_codes: ["en"]
+
+settlement_types:
+  include:
+    - "Q515"    # city
+
+data_fields:
+  - field: "item_id"
+    required: true
+    csv_header: "wikidata_id"
+    
+  - field: "name"
+    wikidata_property: "rdfs:label"
+    required: true
+    csv_header: "name"
+    language: "en"
+    
+  - field: "coordinates"
+    wikidata_property: "P625"
+    required: false
+    csv_header: "latitude,longitude"
+    format: "lat_lon_split"
+    
+  - field: "postal_code"
+    wikidata_property: "P486"
+    required: false
+    csv_header: "postal_code"
+    
+  - field: "population"
+    wikidata_property: "P1082"
+    required: false
+    csv_header: "population"
+    
+  - field: "county"
+    wikidata_property: "P131"
+    required: false
+    csv_header: "county"
+    administrative_level: "county"
+    
+  - field: "region"
+    wikidata_property: "P131"
+    required: false
+    csv_header: "region"
+    administrative_level: "region"
+
+grouping:
+  enabled: true
+  group_by: "none"  # county, region, none
+  sort_by: "name, population"     # name, population
+  include_totals: true
+
+query:
+  limit: 5
+  batch_processing:
+    enabled: false        # true pro dávkové stahování
+    batch_size: 1000      # počet záznamů na dávku
+    max_results: null     # maximální počet výsledků (null = všechny)
+
+output:
+  filename: "english_cities.csv"
+  directory: "./output"
+  delimiter: ","
+  encoding: "utf-8"
+  include_headers: true

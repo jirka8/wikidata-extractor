@@ -1,0 +1,71 @@
+metadata:
+  name: "Netherlands Settlements"
+  description: "Extract Dutch settlements with administrative divisions"
+  version: "1.0"
+
+country:
+  wikidata_id: "Q55"
+  name: "Netherlands"
+  language_codes: ["nl", "en"]
+
+settlement_types:
+  include:
+    - "Q515"      # city
+    - "Q3957"     # town
+    - "Q15284"    # municipality
+    - "Q532"      # village
+    #- "Q5084"     # hamlet
+    #- "Q2039348"  # neighborhood
+
+data_fields:
+  - field: "item_id"
+    required: true
+    csv_header: "wikidata_id"
+    
+  - field: "name"
+    wikidata_property: "rdfs:label"
+    required: true
+    csv_header: "name"
+    language: "nl"
+    
+  - field: "coords"
+    wikidata_property: "P625"
+    required: false
+    csv_header: "latitude,longitude"
+    format: "lat_lon_split"
+    
+  - field: "adminLabel"
+    wikidata_property: "P131"
+    required: false
+    csv_header: "administrative_division"
+    administrative_level: "admin"
+    
+  - field: "population"
+    wikidata_property: "P1082"
+    required: false
+    csv_header: "population"
+    
+  - field: "postal_code"
+    wikidata_property: "P281"
+    required: false
+    csv_header: "postal_code"
+
+grouping:
+  enabled: false
+  group_by: "none"  # adminLabel, none
+  sort_by: "name"         # name, population
+  include_totals: false
+
+query:
+  limit: 500
+  batch_processing:
+    enabled: true
+    batch_size: 250
+    max_results: null  # všechny výsledky
+
+output:
+  filename: "netherlands_settlements.csv"
+  directory: "./output"
+  delimiter: ","
+  encoding: "utf-8"
+  include_headers: true

@@ -1,0 +1,55 @@
+metadata:
+  name: "German Cities"
+  description: "Extract major German cities with population data"
+  version: "1.0"
+
+country:
+  wikidata_id: "Q183"
+  name: "Germany"
+  language_codes: ["de", "en"]
+
+settlement_types:
+  include:
+    - "Q515"    # city
+    - "Q3957"   # town
+
+data_fields:
+  - field: "item_id"
+    required: true
+    csv_header: "wikidata_id"
+    
+  - field: "name"
+    wikidata_property: "rdfs:label"
+    required: true
+    csv_header: "name"
+    language: "de"
+    
+  - field: "coordinates"
+    wikidata_property: "P625"
+    required: false
+    csv_header: "breitengrad,laengengrad"
+    format: "lat_lon_split"
+    
+  - field: "postal_code"
+    wikidata_property: "P281"
+    required: false
+    csv_header: "postleitzahl"
+    
+  - field: "population"
+    wikidata_property: "P1082"
+    required: false
+    csv_header: "einwohner"
+
+filters:
+  population:
+    min: 50000  # Pouze větší města
+
+query:
+  limit: 500
+
+output:
+  filename: "german_cities.csv"
+  directory: "./output"
+  delimiter: ","
+  encoding: "utf-8"
+  include_headers: true

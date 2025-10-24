@@ -1,0 +1,58 @@
+metadata:
+  name: "Slovakia Complete Settlements"
+  description: "Kompletní extrakce slovenských sídel s detailními daty"
+  version: "1.0"
+
+country:
+  wikidata_id: "Q214"
+  name: "Slovakia"
+  language_codes: ["sk", "cs", "en"]
+
+settlement_types:
+  include:
+    - "Q515"    # city
+    - "Q3957"   # town
+    - "Q532"    # village
+
+data_fields:
+  - field: "item_id"
+    required: true
+    csv_header: "wikidata_id"
+    
+  - field: "name"
+    wikidata_property: "rdfs:label"
+    required: true
+    csv_header: "nazov"
+    language: "sk"
+    
+  - field: "coordinates"
+    wikidata_property: "P625"
+    required: false
+    csv_header: "sirka,dlzka"
+    format: "lat_lon_split"
+    
+  - field: "postal_code"
+    wikidata_property: "P281"
+    required: false
+    csv_header: "psc"
+    
+  - field: "nuts_code"
+    wikidata_property: "P1937"
+    required: false
+    csv_header: "nuts"
+    
+  - field: "population"
+    wikidata_property: "P1082"
+    required: false
+    csv_header: "obyvatelia"
+
+filters:
+  coordinates_required: true
+
+output:
+  filename: "slovakia_settlements.csv"
+  directory: "./output"
+  delimiter: ","
+  encoding: "utf-8"
+  include_headers: true
+  date_suffix: true
