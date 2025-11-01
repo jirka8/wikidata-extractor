@@ -49,6 +49,14 @@ python wikidata_extractor.py --country PL
 
 # Německo
 python wikidata_extractor.py --country DE
+
+# Spojené království (celé UK)
+python wikidata_extractor.py --country UK
+# nebo
+python wikidata_extractor.py --country GB
+
+# Pouze Anglie
+python wikidata_extractor.py --country ENG
 ```
 
 ### Použití s vlastní konfigurací
@@ -231,7 +239,9 @@ wikidata-extractor/
 │   ├── czech_republic.yaml
 │   ├── slovakia.yaml
 │   ├── poland.yaml
-│   └── germany.yaml
+│   ├── germany.yaml
+│   ├── united_kingdom.yaml
+│   └── england.yaml
 ├── output/                     # Výstupní soubory
 └── examples/                   # Příklady
 ```
@@ -356,6 +366,14 @@ Q14960,Brno,Brno,Q515,49.1952,16.6079,380681,237.0,230.19,602 00,https://www.brn
 - Rate limiting je důležitý pro ochranu WikiData serveru
 - Některá sídla mohou mít neúplná data
 - Pro velké extrakce může trvat delší dobu (minutes až desítky minut)
+
+### Poznámky k UK/England konfiguracím
+
+**Spojené království (UK)** má specifickou administrativní strukturu:
+- `--country UK` nebo `--country GB` - extrahuje sídla z celého Spojeného království (England, Scotland, Wales, Northern Ireland)
+- `--country ENG` - extrahuje pouze sídla z Anglie
+- UK zahrnuje speciální pole jako OS Grid Reference (P613) pro Ordnance Survey souřadnicový systém
+- Administrativní hierarchie je komplexnější kvůli různým systémům v jednotlivých zemích UK
 
 ---
 

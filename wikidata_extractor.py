@@ -106,8 +106,8 @@ Příklady použití:
     config_group.add_argument(
         '--country',
         type=str,
-        choices=['CZ', 'SK', 'PL', 'DE'],
-        help='Rychlá volba země (CZ/SK/PL/DE)'
+        choices=['CZ', 'SK', 'PL', 'DE', 'UK', 'GB', 'ENG'],
+        help='Rychlá volba země (CZ/SK/PL/DE/UK/GB/ENG)'
     )
 
     # Výstup
@@ -176,7 +176,7 @@ def get_config_path(country_code: str) -> Path:
     Získá cestu ke konfiguračnímu souboru pro zemi.
 
     Args:
-        country_code: Kód země (CZ/SK/PL/DE)
+        country_code: Kód země (CZ/SK/PL/DE/UK/GB/ENG)
 
     Returns:
         Cesta ke konfiguračnímu souboru
@@ -185,7 +185,10 @@ def get_config_path(country_code: str) -> Path:
         'CZ': 'configs/czech_republic.yaml',
         'SK': 'configs/slovakia.yaml',
         'PL': 'configs/poland.yaml',
-        'DE': 'configs/germany.yaml'
+        'DE': 'configs/germany.yaml',
+        'UK': 'configs/united_kingdom.yaml',
+        'GB': 'configs/united_kingdom.yaml',  # Alias pro UK
+        'ENG': 'configs/england.yaml'
     }
 
     return Path(country_map.get(country_code, 'config.yaml'))

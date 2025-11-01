@@ -1,0 +1,156 @@
+# WikiData Extraktor - Konfigurace pouze pro Anglii
+
+country:
+  name: "England"
+  wikidata_qid: "Q21"  # England specifically (not whole UK)
+  iso_code: "GB-ENG"
+  language: "en"
+
+administrative_hierarchy:
+  - level: 1
+    name: "Region"
+    wikidata_property: "P131"
+    wikidata_instance_of: "Q48091"  # ceremonial county / region
+  - level: 2
+    name: "County/Unitary Authority"
+    wikidata_property: "P131"
+    wikidata_instance_of: ["Q180673", "Q349084"]  # administrative county, district
+  - level: 3
+    name: "District/Parish"
+    wikidata_property: "P131"
+    wikidata_instance_of: ["Q1115575", "Q1187580"]  # civil parish, metropolitan district
+
+settlement_types:
+  - type: "city"
+    wikidata_qid: "Q515"
+    label: "City"
+  - type: "town"
+    wikidata_qid: "Q3957"
+    label: "Town"
+  - type: "village"
+    wikidata_qid: "Q532"
+    label: "Village"
+  - type: "civil_parish"
+    wikidata_qid: "Q1115575"
+    label: "Civil Parish"
+  - type: "hamlet"
+    wikidata_qid: "Q5084"
+    label: "Hamlet"
+
+data_fields:
+  # Základní identifikátory
+  - field_name: "wikidata_id"
+    wikidata_property: "SUBJECT"
+    required: true
+    output_column: "wikidata_id"
+    description: "WikiData QID"
+
+  # Názvy
+  - field_name: "name_local"
+    wikidata_property: "rdfs:label"
+    language_filter: "en"
+    required: true
+    output_column: "name_en"
+    description: "English name"
+
+  # Typ sídla
+  - field_name: "settlement_type"
+    wikidata_property: "P31"
+    required: true
+    output_column: "type"
+    description: "Settlement type"
+
+  # Geografické souřadnice
+  - field_name: "coordinates"
+    wikidata_property: "P625"
+    required: true
+    output_column: ["latitude", "longitude"]
+    description: "GPS coordinates"
+
+  # Populace
+  - field_name: "population"
+    wikidata_property: "P1082"
+    required: false
+    output_column: "population"
+    data_type: "integer"
+    description: "Population"
+
+  # Nadmořská výška
+  - field_name: "elevation"
+    wikidata_property: "P2044"
+    required: false
+    output_column: "elevation_m"
+    data_type: "float"
+    description: "Elevation above sea level in metres"
+
+  # Rozloha
+  - field_name: "area"
+    wikidata_property: "P2046"
+    required: false
+    output_column: "area_km2"
+    data_type: "float"
+    description: "Area in km²"
+
+  # Poštovní směrovací číslo
+  - field_name: "postal_code"
+    wikidata_property: "P281"
+    required: false
+    output_column: "postal_code"
+    description: "Postcode"
+
+  # Oficiální webové stránky
+  - field_name: "website"
+    wikidata_property: "P856"
+    required: false
+    output_column: "website"
+    description: "Official website"
+
+  # Grid reference (specifické pro UK)
+  - field_name: "grid_reference"
+    wikidata_property: "P613"
+    required: false
+    output_column: "os_grid_ref"
+    description: "Ordnance Survey National Grid reference"
+
+  # Datum založení
+  - field_name: "inception"
+    wikidata_property: "P571"
+    required: false
+    output_column: "founded_year"
+    data_type: "year"
+    description: "Year of inception"
+
+  # Conservation area
+  - field_name: "heritage_designation"
+    wikidata_property: "P1435"
+    required: false
+    output_column: "heritage_status"
+    description: "Heritage designation"
+
+filters:
+  min_population: null
+  max_population: null
+  settlement_types_include:
+    - "Q515"      # city
+    - "Q3957"     # town
+    - "Q532"      # village
+    - "Q1115575"  # civil parish
+    - "Q5084"     # hamlet
+  exclude_historical: true
+  bounding_box: null  # Example: [49.9, -6.0, 55.8, 2.0] for England only
+
+output:
+  file_path: "output/england_settlements.csv"
+  encoding: "utf-8-sig"
+  delimiter: ","
+  include_header: true
+  date_format: "%Y-%m-%d"
+  null_value: ""
+
+query_settings:
+  endpoint: "https://query.wikidata.org/sparql"
+  timeout: 300
+  user_agent: "WikiDataExtractor/1.0 (https://github.com/wikidata-extractor)"
+  rate_limit_delay: 1.0
+  batch_size: 1000
+  retry_attempts: 3
