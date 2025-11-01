@@ -22,6 +22,9 @@ settlement_types:
   - type: "city"
     wikidata_qid: "Q515"
     label: "Město"
+  - type: "town"
+    wikidata_qid: "Q3957"
+    label: "Městys"
 
 data_fields:
   # Základní identifikátory
@@ -40,7 +43,7 @@ data_fields:
 
   - field_name: "coordinates"
     wikidata_property: "P625"
-    required: true
+    required: false
     output_column: ["latitude", "longitude"]
     description: "GPS souřadnice"
 
@@ -55,6 +58,7 @@ data_fields:
 filters:
   settlement_types_include:
     - "Q515"    # city
+    - "Q3957"   # town
   exclude_historical: true
 
 output:
