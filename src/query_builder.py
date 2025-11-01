@@ -21,21 +21,22 @@ class SPARQLQueryBuilder:
         self.config = config
         self.data_fields = config.get_data_fields()
 
-    def build_query(self, limit: int = None) -> str:
+    def build_query(self, limit: int = None, admin_region_qid: str = None) -> str:
         """
         Sestaví kompletní SPARQL dotaz podle konfigurace.
 
         Args:
             limit: Volitelný limit počtu výsledků (pro testování)
+            admin_region_qid: Volitelné QID administrativního celku pro omezení dotazu
 
         Returns:
             SPARQL dotaz jako string
         """
-        logger.info("🔨 Sestavuji SPARQL dotaz...")
+        logger.info(f"🔨 Sestavuji SPARQL dotaz pro region: {admin_region_qid or 'celá země'}...")
 
         # Části dotazu
         select_clause = self._build_select_clause()
-        where_clause = self._build_where_clause()
+        where_clause = self._build_where_clause(admin_region_qid)
         filter_clause = self._build_filter_clause()
 
         # LIMIT klauzule
@@ -96,13 +97,26 @@ ORDER BY ?settlementLabel{limit_clause}
 
         return select_line
 
-    def _build_where_clause(self) -> str:
-        """Sestaví WHERE klauzuli s triple patterns."""
+    def _build_where_clause(self, admin_region_qid: str = None) -> str:
+        """
+        Sestaví WHERE klauzuli s triple patterns.
+
+        Args:
+            admin_region_qid: Volitelné QID administrativního celku pro omezení dotazu
+        """
         patterns = []
 
         # Základní omezení - země
         country_qid = self.config.get('country', 'wikidata_qid')
         patterns.append(f"  ?settlement wdt:P17 wd:{country_qid} .")
+
+        # Omezení na konkrétní administrativní celek (pokud je zadáno)
+        if admin_region_qid:
+            batch_level = self.config.get('query_settings', 'batch_by_admin_level')
+            if not batch_level:
+                raise ValueError("Chybí 'batch_by_admin_level' v konfiguraci pro strategii 'by_admin_level'")
+            admin_var = f"?admin{batch_level}"
+            patterns.append(f"  VALUES {admin_var} {{ wd:{admin_region_qid} }}")
 
         # Typy sídel
         settlement_types = self.config.get('settlement_types', default=[])
@@ -124,6 +138,49 @@ ORDER BY ?settlementLabel{limit_clause}
             patterns.append(hierarchy_pattern)
 
         return '\n'.join(patterns)
+
+    def build_admin_regions_query(self, batch_level: int) -> str:
+        """
+        Sestaví SPARQL dotaz pro získání seznamu administrativních celků.
+
+        Args:
+            batch_level: Úroveň administrativní hierarchie
+
+        Returns:
+            SPARQL dotaz pro získání regionů
+        """
+        logger.info(f"🔨 Sestavuji dotaz pro administrativní celky úrovně {batch_level}...")
+
+        hierarchy_config = self.config.get('administrative_hierarchy', default=[])
+        level_config = next((h for h in hierarchy_config if h['level'] == batch_level), None)
+
+        if not level_config:
+            raise ValueError(f"Konfigurace pro administrativní úroveň {batch_level} nenalezena.")
+
+        instance_of = level_config.get('wikidata_instance_of')
+        if not instance_of:
+            raise ValueError(f"Chybí 'wikidata_instance_of' pro úroveň {batch_level}.")
+
+        country_qid = self.config.get('country', 'wikidata_qid')
+        language = self.config.get('country', 'language')
+
+        # Podpora pro více QIDs v instance_of
+        if isinstance(instance_of, list):
+            values_line = ' '.join([f'wd:{qid}' for qid in instance_of])
+            instance_of_pattern = f"  VALUES ?type {{ {values_line} }}\n  ?region wdt:P31 ?type ."
+        else:
+            instance_of_pattern = f"  ?region wdt:P31 wd:{instance_of} ."
+
+        query = f"""
+SELECT DISTINCT ?region ?regionLabel WHERE {{
+{instance_of_pattern}
+  ?region wdt:P17 wd:{country_qid} .
+  SERVICE wikibase:label {{ bd:serviceParam wikibase:language "{language},en" . }}
+}}
+ORDER BY ?regionLabel
+"""
+        logger.info("✅ Dotaz na administrativní celky sestaven.")
+        return query.strip()
 
     def _build_filter_clause(self) -> str:
         """Sestaví FILTER klauzuli."""

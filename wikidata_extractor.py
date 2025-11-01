@@ -11,6 +11,7 @@ import logging
 from pathlib import Path
 from typing import Optional, List
 import time
+from tqdm import tqdm
 
 # Import modulů
 from src.config_manager import Config, ConfigValidator
@@ -352,11 +353,76 @@ def main() -> int:
 
         # Stažení dat
         logger.info("🚀 Zahajuji stahování dat z WikiData...")
-        raw_results = client.fetch_all_data(sparql_query)
+        
+        strategy = config.get('query_settings', 'strategy', default='single_query')
+        logger.info(f"💡 Použitá strategie: {strategy}")
+
+        raw_results = []
+
+        if strategy == 'by_admin_level':
+            batch_level = config.get('query_settings', 'batch_by_admin_level')
+            if not batch_level:
+                raise ValueError("Pro strategii 'by_admin_level' je nutné nastavit 'batch_by_admin_level'")
+
+            # Fáze 1: Získání administrativních celků
+            logger.info(f"Fáze 1: Získávám administrativní celky úrovně {batch_level}...")
+            admin_query = query_builder.build_admin_regions_query(batch_level)
+            admin_results = client.execute_query(admin_query)
+            admin_regions = admin_results.get('results', {}).get('bindings', [])
+            
+            if not admin_regions:
+                logger.warning("⚠️ Nenalezeny žádné administrativní celky pro dávkové zpracování.")
+                return 1
+            
+            logger.info(f"✅ Nalezeno {len(admin_regions)} administrativních celků.")
+
+            # Fáze 2: Iterace a stahování dat pro každý celek
+            logger.info("Fáze 2: Stahuji data pro jednotlivé celky...")
+            all_bindings = []
+            
+            progress_bar = tqdm(admin_regions, desc="Zpracovávám celky", unit="celek")
+            for region in progress_bar:
+                region_qid = processor.extract_qid(region['region']['value'])
+                region_label = region['regionLabel']['value']
+                progress_bar.set_description(f"Zpracovávám: {region_label}")
+
+                # Sestavení a provedení dotazu pro daný region
+                sparql_query = query_builder.build_query(admin_region_qid=region_qid)
+                
+                # Pro dílčí dotazy nepoužíváme fetch_all_data, ale přímo execute_query
+                region_data = client.execute_query(sparql_query)
+                bindings = region_data.get('results', {}).get('bindings', [])
+                
+                if bindings:
+                    logger.debug(f"  -> Nalezeno {len(bindings)} záznamů pro {region_label}")
+                    all_bindings.extend(bindings)
+            
+            raw_results = all_bindings
+
+        else: # strategy == 'single_query'
+            sparql_query = query_builder.build_query()
+            # Pro dry-run se zobrazí jen hlavní dotaz
+            if args.dry_run:
+                logger.info("\n" + "=" * 70)
+                logger.info("SPARQL Dotaz (single_query):")
+                logger.info("=" * 70)
+                print(sparql_query)
+                logger.info("=" * 70)
+                return 0
+            
+            results = client.execute_query(sparql_query)
+            raw_results = results.get('results', {}).get('bindings', [])
+
+        # Aplikace --limit až po shromáždění všech dat
+        if args.limit and len(raw_results) > args.limit:
+            logger.info(f"✂️ Omezuji počet výsledků na {args.limit} (z {len(raw_results)})")
+            raw_results = raw_results[:args.limit]
 
         if not raw_results:
             logger.warning("⚠️ Žádná data nebyla nalezena")
             return 1
+        
+        logger.info(f"📊 Celkem nalezeno záznamů: {len(raw_results)}")
 
         # Zpracování dat
         processed_data = processor.process_results(raw_results)

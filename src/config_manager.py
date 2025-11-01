@@ -128,7 +128,12 @@ class ConfigValidator:
                     "user_agent": {"type": "string"},
                     "rate_limit_delay": {"type": "number"},
                     "batch_size": {"type": "integer"},
-                    "retry_attempts": {"type": "integer"}
+                    "retry_attempts": {"type": "integer"},
+                    "strategy": {
+                        "type": "string",
+                        "enum": ["single_query", "by_admin_level"]
+                    },
+                    "batch_by_admin_level": {"type": "integer"}
                 }
             }
         }
@@ -235,7 +240,8 @@ class Config:
                 'user_agent': 'WikiDataExtractor/1.0',
                 'rate_limit_delay': 1.0,
                 'batch_size': 1000,
-                'retry_attempts': 3
+                'retry_attempts': 3,
+                'strategy': 'single_query'
             },
             'output': {
                 'encoding': 'utf-8-sig',

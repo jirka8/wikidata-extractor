@@ -150,3 +150,5 @@ query_settings:
   rate_limit_delay: 1.0
   batch_size: 1000
   retry_attempts: 3
+  strategy: "by_admin_level"
+  batch_by_admin_level: 1
