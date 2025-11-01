@@ -283,7 +283,7 @@ ORDER BY ?regionLabel
             patterns.append(f"  OPTIONAL {{")
             
             # Najdi předka pomocí tranzitivní cesty
-            patterns.append(f"    ?settlement {prop}* {admin_var} .")
+            patterns.append(f"    ?settlement wdt:{prop}* {admin_var} .")
             
             # Ověř, že předek je správného typu (instance of)
             if isinstance(instance_of, list):
