@@ -37,7 +37,9 @@ class WikiDataClient:
         self.sparql = SPARQLWrapper(self.endpoint)
         self.sparql.setReturnFormat(JSON)
         self.sparql.setTimeout(self.timeout)
-        self.sparql.setAgent(self.user_agent)
+
+        # Nastavení User-Agent (kompatibilní napříč verzemi)
+        self.sparql.addCustomHttpHeader("User-Agent", self.user_agent)
 
         # Statistiky
         self.total_requests = 0
