@@ -1,0 +1,113 @@
+# WikiData Extraktor - Konfigurace pro Polsko
+
+country:
+  name: "Poland"
+  wikidata_qid: "Q36"
+  iso_code: "PL"
+  language: "pl"
+
+administrative_hierarchy:
+  - level: 1
+    name: "Województwo"
+    wikidata_property: "P131"
+    wikidata_instance_of: "Q54935504"
+  - level: 2
+    name: "Powiat"
+    wikidata_property: "P131"
+    wikidata_instance_of: "Q powiat"
+  - level: 3
+    name: "Gmina"
+    wikidata_property: "P131"
+    wikidata_instance_of: "Q13539802"
+
+settlement_types:
+  - type: "city"
+    wikidata_qid: "Q515"
+    label: "Miasto"
+  - type: "town"
+    wikidata_qid: "Q3957"
+    label: "Miasteczko"
+  - type: "village"
+    wikidata_qid: "Q532"
+    label: "Wieś"
+  - type: "municipality"
+    wikidata_qid: "Q262166"
+    label: "Gmina"
+
+data_fields:
+  - field_name: "wikidata_id"
+    wikidata_property: "SUBJECT"
+    required: true
+    output_column: "wikidata_id"
+    description: "WikiData QID"
+
+  - field_name: "name_local"
+    wikidata_property: "rdfs:label"
+    language_filter: "pl"
+    required: true
+    output_column: "name_pl"
+    description: "Nazwa po polsku"
+
+  - field_name: "name_english"
+    wikidata_property: "rdfs:label"
+    language_filter: "en"
+    required: false
+    output_column: "name_en"
+    description: "English name"
+
+  - field_name: "settlement_type"
+    wikidata_property: "P31"
+    required: true
+    output_column: "type"
+    description: "Typ miejscowości"
+
+  - field_name: "coordinates"
+    wikidata_property: "P625"
+    required: true
+    output_column: ["latitude", "longitude"]
+    description: "Współrzędne GPS"
+
+  - field_name: "population"
+    wikidata_property: "P1082"
+    required: false
+    output_column: "population"
+    data_type: "integer"
+    description: "Liczba ludności"
+
+  - field_name: "area"
+    wikidata_property: "P2046"
+    required: false
+    output_column: "area_km2"
+    data_type: "float"
+    description: "Powierzchnia w km²"
+
+  - field_name: "postal_code"
+    wikidata_property: "P281"
+    required: false
+    output_column: "postal_code"
+    description: "Kod pocztowy"
+
+  - field_name: "website"
+    wikidata_property: "P856"
+    required: false
+    output_column: "website"
+    description: "Oficjalna strona internetowa"
+
+filters:
+  min_population: null
+  max_population: null
+  settlement_types_include:
+    - "Q515"
+    - "Q3957"
+    - "Q532"
+    - "Q262166"
+  exclude_historical: true
+  bounding_box: null
+
+output:
+  file_path: "output/poland_municipalities.csv"
+  encoding: "utf-8-sig"
+  delimiter: ","
+  include_header: true
+  date_format: "%Y-%m-%d"
+  null_value: ""

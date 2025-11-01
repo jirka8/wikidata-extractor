@@ -1,276 +1,264 @@
-"""
-HTTP klient pro komunikaci s Wikidata API
-"""
+"""WikiData SPARQL klient s rate limiting a retry logikou."""
 
 import time
+import logging
+from typing import List, Dict, Any, Optional, Callable
+from SPARQLWrapper import SPARQLWrapper, JSON
+from SPARQLWrapper.SPARQLExceptions import SPARQLWrapperException, EndPointNotFound, QueryBadFormed
 import requests
-from typing import Dict, List, Any, Optional
-from urllib.parse import urlencode
+from requests.exceptions import RequestException, Timeout, ConnectionError
+from tqdm import tqdm
+
+from .config_manager import Config
 
 
-class WikidataAPIError(Exception):
-    """Chyba při komunikaci s Wikidata API"""
-    pass
+logger = logging.getLogger('WikiDataExtractor.Client')
 
 
-class WikidataClient:
-    """HTTP klient pro Wikidata SPARQL endpoint"""
-    
-    def __init__(self, config: Dict[str, Any]):
-        self.api_config = config
-        self.endpoint = self.api_config['endpoint']
-        self.timeout = self.api_config['timeout']
-        self.retry_attempts = self.api_config['retry_attempts']
-        self.retry_delay = self.api_config['retry_delay']
-        self.user_agent = self.api_config['user_agent']
-        
-        # Rate limiting
-        self.rate_limit = self.api_config['rate_limit']  # requests per minute
+class WikiDataClient:
+    """Komunikace s WikiData SPARQL endpointem."""
+
+    def __init__(self, config: Config):
+        """
+        Inicializace WikiData klienta.
+
+        Args:
+            config: Konfigurace projektu
+        """
+        self.config = config
+        self.endpoint = config.get('query_settings', 'endpoint')
+        self.timeout = config.get('query_settings', 'timeout')
+        self.user_agent = config.get('query_settings', 'user_agent')
+        self.rate_limit_delay = config.get('query_settings', 'rate_limit_delay')
+        self.retry_attempts = config.get('query_settings', 'retry_attempts')
+        self.batch_size = config.get('query_settings', 'batch_size')
+
+        # Inicializace SPARQL wrapperu
+        self.sparql = SPARQLWrapper(self.endpoint)
+        self.sparql.setReturnFormat(JSON)
+        self.sparql.setTimeout(self.timeout)
+        self.sparql.setAgent(self.user_agent)
+
+        # Statistiky
+        self.total_requests = 0
+        self.failed_requests = 0
         self.last_request_time = 0
-        self.request_interval = 60.0 / self.rate_limit  # seconds between requests
-        
-        # Session pro connection pooling
-        self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': self.user_agent,
-            'Accept': 'application/sparql-results+json'
-        })
-    
-    def execute_query_batch(self, sparql_query: str, batch_size: int = 1000, 
-                           max_results: Optional[int] = None) -> List[Dict[str, Any]]:
+
+    def execute_query(self, sparql_query: str) -> Dict[str, Any]:
         """
-        Vykoná SPARQL dotaz s automatickým dávkovým stahováním
-        
+        Provede SPARQL dotaz s retry logikou.
+
         Args:
-            sparql_query: SPARQL dotaz jako string (bez LIMIT)
-            batch_size: Velikost dávky pro každý požadavek
-            max_results: Maximální počet výsledků (None = všechny)
-            
+            sparql_query: SPARQL dotaz k provedení
+
         Returns:
-            Seznam všech výsledků jako slovníky
-            
+            Výsledky dotazu jako slovník
+
         Raises:
-            WikidataAPIError: Chyba při dotazu
+            Exception: Pokud dotaz selže po všech pokusech
         """
-        all_results = []
-        offset = 0
-        batch_count = 1
-        
-        # Odstranit existující LIMIT z dotazu
-        base_query = self._remove_limit_from_query(sparql_query)
-        
-        while True:
-            # Sestavit dotaz s OFFSET a LIMIT
-            batch_query = f"{base_query}\nLIMIT {batch_size} OFFSET {offset}"
-            
-            print(f"Stahování dávka {batch_count} (offset {offset}, limit {batch_size})...")
-            
-            try:
-                batch_results = self.execute_query(batch_query)
-                
-                if not batch_results:
-                    print("Žádné další výsledky - dokončeno")
-                    break
-                
-                all_results.extend(batch_results)
-                print(f"✓ Dávka {batch_count}: získáno {len(batch_results)} záznamů (celkem {len(all_results)})")
-                
-                # Kontrola maximálního počtu výsledků
-                if max_results and len(all_results) >= max_results:
-                    all_results = all_results[:max_results]
-                    print(f"Dosažen maximální počet výsledků: {max_results}")
-                    break
-                
-                # Příprava na další dávku
-                offset += batch_size
-                batch_count += 1
-                
-                # Bezpečnostní pojistka - maximálně 100 dávek
-                if batch_count > 100:
-                    print("⚠️ Dosažen maximální počet dávek (100) - ukončuji")
-                    break
-                
-            except WikidataAPIError as e:
-                print(f"✗ Chyba v dávce {batch_count}: {e}")
-                if len(all_results) > 0:
-                    print(f"Vracím částečné výsledky: {len(all_results)} záznamů")
-                    break
-                else:
-                    raise e
-        
-        return all_results
-    
-    def execute_query(self, sparql_query: str) -> List[Dict[str, Any]]:
+        logger.info("🔍 Provádím SPARQL dotaz...")
+
+        # Nastavení dotazu
+        self.sparql.setQuery(sparql_query)
+
+        # Provedení s retry
+        result = self._retry_on_failure(
+            self._execute_single_query,
+            max_attempts=self.retry_attempts
+        )
+
+        self.total_requests += 1
+
+        logger.info(f"✅ Dotaz dokončen (celkem požadavků: {self.total_requests})")
+
+        return result
+
+    def _execute_single_query(self) -> Dict[str, Any]:
         """
-        Vykoná SPARQL dotaz na Wikidata endpoint
-        
-        Args:
-            sparql_query: SPARQL dotaz jako string
-            
+        Provede jeden SPARQL dotaz.
+
         Returns:
-            Seznam výsledků jako slovníky
-            
+            Výsledky dotazu
+
         Raises:
-            WikidataAPIError: Chyba při dotazu
+            Různé výjimky při selhání dotazu
         """
-        self._enforce_rate_limit()
-        
-        for attempt in range(self.retry_attempts + 1):
-            try:
-                response = self._make_request(sparql_query)
-                return self._parse_response(response)
-                
-            except requests.exceptions.Timeout:
-                if attempt < self.retry_attempts:
-                    print(f"Timeout - pokus {attempt + 1}/{self.retry_attempts + 1}")
-                    time.sleep(self.retry_delay)
-                    continue
-                raise WikidataAPIError("Dotaz vypršel po všech pokusech")
-                
-            except requests.exceptions.RequestException as e:
-                if attempt < self.retry_attempts:
-                    print(f"HTTP chyba - pokus {attempt + 1}/{self.retry_attempts + 1}: {e}")
-                    time.sleep(self.retry_delay)
-                    continue
-                raise WikidataAPIError(f"HTTP chyba: {e}")
-                
-            except Exception as e:
-                if attempt < self.retry_attempts:
-                    print(f"Obecná chyba - pokus {attempt + 1}/{self.retry_attempts + 1}: {e}")
-                    time.sleep(self.retry_delay)
-                    continue
-                raise WikidataAPIError(f"Neočekávaná chyba: {e}")
-        
-        raise WikidataAPIError("Dotaz selhal po všech pokusech")
-    
-    def _make_request(self, sparql_query: str) -> requests.Response:
-        """Provede HTTP požadavek"""
-        params = {
-            'query': sparql_query,
-            'format': 'json'
-        }
-        
-        # GET request s query parametrem
-        url = f"{self.endpoint}?{urlencode(params)}"
-        
-        response = self.session.get(url, timeout=self.timeout)
-        response.raise_for_status()
-        
-        return response
-    
-    def _parse_response(self, response: requests.Response) -> List[Dict[str, Any]]:
-        """
-        Parsuje JSON odpověď z Wikidata API
-        
-        Args:
-            response: HTTP response objekt
-            
-        Returns:
-            Seznam výsledků jako slovníky
-        """
+        # Rate limiting
+        self._apply_rate_limit()
+
         try:
-            data = response.json()
-        except ValueError as e:
-            raise WikidataAPIError(f"Neplatná JSON odpověď: {e}")
-        
-        if 'results' not in data or 'bindings' not in data['results']:
-            raise WikidataAPIError("Neočekávaný formát odpovědi")
-        
-        results = []
-        for binding in data['results']['bindings']:
-            result = {}
-            for var, value_obj in binding.items():
-                result[var] = self._extract_value(value_obj)
-            results.append(result)
-        
-        return results
-    
-    def _extract_value(self, value_obj: Dict[str, str]) -> str:
+            # Provedení dotazu
+            response = self.sparql.queryAndConvert()
+
+            # Záznam času
+            self.last_request_time = time.time()
+
+            return response
+
+        except QueryBadFormed as e:
+            logger.error(f"❌ Chybně formovaný dotaz: {e}")
+            raise
+
+        except EndPointNotFound as e:
+            logger.error(f"❌ Endpoint nenalezen: {e}")
+            raise
+
+        except Timeout as e:
+            logger.warning(f"⚠️ Timeout dotazu: {e}")
+            raise
+
+        except ConnectionError as e:
+            logger.warning(f"⚠️ Chyba spojení: {e}")
+            raise
+
+        except SPARQLWrapperException as e:
+            logger.error(f"❌ SPARQL chyba: {e}")
+            raise
+
+        except RequestException as e:
+            logger.error(f"❌ HTTP chyba: {e}")
+            raise
+
+        except Exception as e:
+            logger.error(f"❌ Neočekávaná chyba: {e}")
+            raise
+
+    def fetch_all_data(self, sparql_query: str, show_progress: bool = True) -> List[Dict[str, Any]]:
         """
-        Extrahuje hodnotu z SPARQL binding objektu
-        
+        Stáhne všechna data s podporou stránkování.
+
         Args:
-            value_obj: SPARQL binding objekt
-            
+            sparql_query: SPARQL dotaz
+            show_progress: Zobrazit progress bar
+
         Returns:
-            Extrahovaná hodnota jako string
+            Seznam všech výsledků
         """
-        if 'value' not in value_obj:
-            return ""
-        
-        value = value_obj['value']
-        value_type = value_obj.get('type', 'literal')
-        
-        # Speciální handling pro různé typy
-        if value_type == 'uri':
-            # Extrahovat Wikidata ID z URI
-            if 'wikidata.org/entity/' in value:
-                return value.split('/')[-1]
-            return value
-        
-        return value
-    
-    def _enforce_rate_limit(self):
-        """Vynucuje rate limit mezi požadavky"""
-        current_time = time.time()
-        time_since_last = current_time - self.last_request_time
-        
-        if time_since_last < self.request_interval:
-            sleep_time = self.request_interval - time_since_last
-            print(f"Rate limiting: čekám {sleep_time:.2f}s")
-            time.sleep(sleep_time)
-        
-        self.last_request_time = time.time()
-    
+        logger.info("📥 Stahuji všechna data z WikiData...")
+
+        # První dotaz pro zjištění celkového počtu
+        results = self.execute_query(sparql_query)
+        bindings = results.get('results', {}).get('bindings', [])
+
+        total_count = len(bindings)
+        logger.info(f"📊 Nalezeno záznamů: {total_count}")
+
+        # Pro WikiData SPARQL endpoint obvykle není potřeba stránkování,
+        # protože vrací všechny výsledky najednou (s limitem ~1M)
+        # Ale implementujeme podporu pro budoucí rozšíření
+
+        all_results = bindings
+
+        if total_count == 0:
+            logger.warning("⚠️ Žádné záznamy nenalezeny")
+
+        return all_results
+
+    def _apply_rate_limit(self) -> None:
+        """Aplikuje rate limiting mezi požadavky."""
+        if self.last_request_time > 0 and self.rate_limit_delay > 0:
+            elapsed = time.time() - self.last_request_time
+            if elapsed < self.rate_limit_delay:
+                sleep_time = self.rate_limit_delay - elapsed
+                logger.debug(f"💤 Rate limit: čekám {sleep_time:.2f}s")
+                time.sleep(sleep_time)
+
+    def _retry_on_failure(
+        self,
+        func: Callable,
+        max_attempts: int,
+        *args,
+        **kwargs
+    ) -> Any:
+        """
+        Opakuje funkci při selhání s exponenciálním backoff.
+
+        Args:
+            func: Funkce k opakování
+            max_attempts: Maximální počet pokusů
+            *args: Argumenty pro funkci
+            **kwargs: Klíčové argumenty pro funkci
+
+        Returns:
+            Výsledek funkce
+
+        Raises:
+            Exception: Pokud všechny pokusy selžou
+        """
+        last_exception = None
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                return func(*args, **kwargs)
+
+            except (Timeout, ConnectionError, RequestException) as e:
+                last_exception = e
+                self.failed_requests += 1
+
+                if attempt < max_attempts:
+                    # Exponenciální backoff: 2^attempt sekund
+                    wait_time = 2 ** attempt
+                    logger.warning(
+                        f"⚠️ Pokus {attempt}/{max_attempts} selhal: {e}"
+                    )
+                    logger.info(f"🔄 Opakuji za {wait_time}s...")
+                    time.sleep(wait_time)
+                else:
+                    logger.error(
+                        f"❌ Všechny pokusy ({max_attempts}) selhaly"
+                    )
+
+            except (QueryBadFormed, EndPointNotFound) as e:
+                # Tyto chyby nemá smysl opakovat
+                logger.error(f"❌ Neopravitelná chyba: {e}")
+                raise
+
+        # Pokud se dostaneme sem, všechny pokusy selhaly
+        raise last_exception
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """
+        Vrací statistiky klienta.
+
+        Returns:
+            Slovník se statistikami
+        """
+        success_rate = 0.0
+        if self.total_requests > 0:
+            success_rate = (
+                (self.total_requests - self.failed_requests) / self.total_requests * 100
+            )
+
+        return {
+            'total_requests': self.total_requests,
+            'failed_requests': self.failed_requests,
+            'success_rate': f"{success_rate:.1f}%",
+            'endpoint': self.endpoint,
+            'timeout': self.timeout,
+            'rate_limit_delay': self.rate_limit_delay
+        }
+
     def test_connection(self) -> bool:
         """
-        Otestuje připojení k Wikidata API
-        
+        Testuje spojení s WikiData endpointem.
+
         Returns:
-            True pokud je API dostupné
+            True pokud spojení funguje
         """
+        logger.info("🔌 Testuji spojení s WikiData...")
+
         test_query = """
         SELECT ?item WHERE {
-          ?item wdt:P31 wd:Q515 .
+          ?item wdt:P31 wd:Q5 .
         } LIMIT 1
         """
-        
+
         try:
-            results = self.execute_query(test_query)
-            return len(results) > 0
-        except WikidataAPIError:
+            self.execute_query(test_query)
+            logger.info("✅ Spojení funkční")
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ Test spojení selhal: {e}")
             return False
-    
-    def get_statistics(self) -> Dict[str, Any]:
-        """Vrátí statistiky klienta"""
-        return {
-            'endpoint': self.endpoint,
-            'rate_limit': self.rate_limit,
-            'timeout': self.timeout,
-            'retry_attempts': self.retry_attempts,
-            'last_request_time': self.last_request_time
-        }
-    
-    def _remove_limit_from_query(self, query: str) -> str:
-        """
-        Odstraní LIMIT klauzuli z SPARQL dotazu
-        
-        Args:
-            query: SPARQL dotaz
-            
-        Returns:
-            Dotaz bez LIMIT klauzule
-        """
-        lines = query.strip().split('\n')
-        filtered_lines = []
-        
-        for line in lines:
-            line_stripped = line.strip().upper()
-            if not line_stripped.startswith('LIMIT'):
-                filtered_lines.append(line)
-        
-        return '\n'.join(filtered_lines)
-    
-    def close(self):
-        """Uzavře HTTP session"""
-        self.session.close()

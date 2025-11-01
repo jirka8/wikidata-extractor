@@ -1,6 +1,4 @@
-"""
-Wikidata Extractor - nástroj pro stahování dat o sídlech z Wikidata API
-"""
+"""WikiData SPARQL Extraktor - Extrakce dat o městech a obcích z WikiData."""
 
 __version__ = "1.0.0"
-__author__ = "Adeo Project"
+__author__ = "WikiData Extractor"

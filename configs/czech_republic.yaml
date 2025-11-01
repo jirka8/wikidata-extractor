@@ -1,0 +1,152 @@
+# WikiData Extraktor - Konfigurace pro Českou republiku
+
+country:
+  name: "Czech Republic"
+  wikidata_qid: "Q213"
+  iso_code: "CZ"
+  language: "cs"
+
+administrative_hierarchy:
+  - level: 1
+    name: "Kraj"
+    wikidata_property: "P131"
+    wikidata_instance_of: "Q38911"
+  - level: 2
+    name: "Okres"
+    wikidata_property: "P131"
+    wikidata_instance_of: "Q548611"
+  - level: 3
+    name: "ORP"
+    wikidata_property: "P131"
+    wikidata_instance_of: "Q5153984"
+
+settlement_types:
+  - type: "city"
+    wikidata_qid: "Q515"
+    label: "Město"
+  - type: "town"
+    wikidata_qid: "Q3957"
+    label: "Městys"
+  - type: "village"
+    wikidata_qid: "Q532"
+    label: "Vesnice"
+  - type: "municipality"
+    wikidata_qid: "Q262166"
+    label: "Obec"
+
+data_fields:
+  # Základní identifikátory
+  - field_name: "wikidata_id"
+    wikidata_property: "SUBJECT"
+    required: true
+    output_column: "wikidata_id"
+    description: "WikiData QID sídla"
+
+  # Názvy
+  - field_name: "name_local"
+    wikidata_property: "rdfs:label"
+    language_filter: "cs"
+    required: true
+    output_column: "name_cs"
+    description: "Název v češtině"
+
+  - field_name: "name_english"
+    wikidata_property: "rdfs:label"
+    language_filter: "en"
+    required: false
+    output_column: "name_en"
+    description: "Anglický název"
+
+  # Typ sídla
+  - field_name: "settlement_type"
+    wikidata_property: "P31"
+    required: true
+    output_column: "type"
+    description: "Typ sídla (město/vesnice/obec)"
+
+  # Geografické souřadnice
+  - field_name: "coordinates"
+    wikidata_property: "P625"
+    required: true
+    output_column: ["latitude", "longitude"]
+    description: "GPS souřadnice"
+
+  # Populace
+  - field_name: "population"
+    wikidata_property: "P1082"
+    required: false
+    output_column: "population"
+    data_type: "integer"
+    description: "Počet obyvatel"
+
+  # Nadmořská výška
+  - field_name: "elevation"
+    wikidata_property: "P2044"
+    required: false
+    output_column: "elevation_m"
+    data_type: "float"
+    description: "Nadmořská výška v metrech"
+
+  # Rozloha
+  - field_name: "area"
+    wikidata_property: "P2046"
+    required: false
+    output_column: "area_km2"
+    data_type: "float"
+    description: "Rozloha v km²"
+
+  # Poštovní směrovací číslo
+  - field_name: "postal_code"
+    wikidata_property: "P281"
+    required: false
+    output_column: "postal_code"
+    description: "PSČ"
+
+  # Oficiální webové stránky
+  - field_name: "website"
+    wikidata_property: "P856"
+    required: false
+    output_column: "website"
+    description: "Oficiální web"
+
+  # Datum založení
+  - field_name: "inception"
+    wikidata_property: "P571"
+    required: false
+    output_column: "founded_year"
+    data_type: "year"
+    description: "Rok založení"
+
+  # NUTS kód
+  - field_name: "nuts_code"
+    wikidata_property: "P605"
+    required: false
+    output_column: "nuts_code"
+    description: "NUTS statistický kód"
+
+filters:
+  min_population: null
+  max_population: null
+  settlement_types_include:
+    - "Q515"    # city
+    - "Q3957"   # town
+    - "Q532"    # village
+    - "Q262166" # municipality
+  exclude_historical: true
+  bounding_box: null
+
+output:
+  file_path: "output/czech_municipalities.csv"
+  encoding: "utf-8-sig"
+  delimiter: ","
+  include_header: true
+  date_format: "%Y-%m-%d"
+  null_value: ""
+
+query_settings:
+  endpoint: "https://query.wikidata.org/sparql"
+  timeout: 300
+  user_agent: "WikiDataExtractor/1.0 (https://github.com/wikidata-extractor)"
+  rate_limit_delay: 1.0
+  batch_size: 1000
+  retry_attempts: 3

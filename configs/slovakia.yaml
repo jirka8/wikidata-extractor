@@ -1,0 +1,116 @@
+# WikiData Extraktor - Konfigurace pro Slovensko
+
+country:
+  name: "Slovakia"
+  wikidata_qid: "Q214"
+  iso_code: "SK"
+  language: "sk"
+
+administrative_hierarchy:
+  - level: 1
+    name: "Kraj"
+    wikidata_property: "P131"
+    wikidata_instance_of: "Q192283"
+  - level: 2
+    name: "Okres"
+    wikidata_property: "P131"
+    wikidata_instance_of: "Q548611"
+
+settlement_types:
+  - type: "city"
+    wikidata_qid: "Q515"
+    label: "Mesto"
+  - type: "town"
+    wikidata_qid: "Q3957"
+    label: "Mestečko"
+  - type: "village"
+    wikidata_qid: "Q532"
+    label: "Obec"
+  - type: "municipality"
+    wikidata_qid: "Q262166"
+    label: "Obec"
+
+data_fields:
+  - field_name: "wikidata_id"
+    wikidata_property: "SUBJECT"
+    required: true
+    output_column: "wikidata_id"
+    description: "WikiData QID sídla"
+
+  - field_name: "name_local"
+    wikidata_property: "rdfs:label"
+    language_filter: "sk"
+    required: true
+    output_column: "name_sk"
+    description: "Názov v slovenčine"
+
+  - field_name: "name_english"
+    wikidata_property: "rdfs:label"
+    language_filter: "en"
+    required: false
+    output_column: "name_en"
+    description: "Anglický názov"
+
+  - field_name: "settlement_type"
+    wikidata_property: "P31"
+    required: true
+    output_column: "type"
+    description: "Typ sídla"
+
+  - field_name: "coordinates"
+    wikidata_property: "P625"
+    required: true
+    output_column: ["latitude", "longitude"]
+    description: "GPS súradnice"
+
+  - field_name: "population"
+    wikidata_property: "P1082"
+    required: false
+    output_column: "population"
+    data_type: "integer"
+    description: "Počet obyvateľov"
+
+  - field_name: "elevation"
+    wikidata_property: "P2044"
+    required: false
+    output_column: "elevation_m"
+    data_type: "float"
+    description: "Nadmorská výška v metroch"
+
+  - field_name: "area"
+    wikidata_property: "P2046"
+    required: false
+    output_column: "area_km2"
+    data_type: "float"
+    description: "Rozloha v km²"
+
+  - field_name: "postal_code"
+    wikidata_property: "P281"
+    required: false
+    output_column: "postal_code"
+    description: "PSČ"
+
+  - field_name: "website"
+    wikidata_property: "P856"
+    required: false
+    output_column: "website"
+    description: "Oficiálna webová stránka"
+
+filters:
+  min_population: null
+  max_population: null
+  settlement_types_include:
+    - "Q515"
+    - "Q3957"
+    - "Q532"
+    - "Q262166"
+  exclude_historical: true
+  bounding_box: null
+
+output:
+  file_path: "output/slovakia_municipalities.csv"
+  encoding: "utf-8-sig"
+  delimiter: ","
+  include_header: true
+  date_format: "%Y-%m-%d"
+  null_value: ""

@@ -1,320 +1,304 @@
-"""
-CSV export funkcionalita pro Wikidata Extractor
-"""
+"""Export zpracovaných dat do CSV formátu."""
 
-import csv
-import os
+import logging
+from typing import List, Dict, Any
+from pathlib import Path
+import pandas as pd
 from datetime import datetime
-from typing import List, Dict, Any, Optional
 
-from data_grouper import DataGrouper
+from .config_manager import Config
 
 
-class CSVExportError(Exception):
-    """Chyba při exportu do CSV"""
-    pass
+logger = logging.getLogger('WikiDataExtractor.CSVExporter')
 
 
 class CSVExporter:
-    """Exportér dat do CSV formátu"""
-    
-    def __init__(self, config: Dict[str, Any]):
-        self.output_config = config
-        self.data_fields_config = []  # Bude nastaveno při exportu
-        self.grouper = None  # Bude nastaveno při exportu
-    
-    def export_data(self, data: List[Dict[str, Any]], 
-                   data_fields_config: List[Dict[str, Any]],
-                   grouping_config: Optional[Dict[str, Any]] = None) -> str:
+    """Export dat do CSV formátu."""
+
+    def __init__(self, config: Config):
         """
-        Exportuje data do CSV souboru
-        
+        Inicializace CSV exportéru.
+
         Args:
-            data: Seznam výsledků z Wikidata API
-            data_fields_config: Konfigurace datových polí
-            grouping_config: Konfigurace seskupování (volitelné)
-            
+            config: Konfigurace projektu
+        """
+        self.config = config
+
+    def export(self, data: List[Dict[str, Any]], output_path: str = None) -> Path:
+        """
+        Exportuje data do CSV souboru.
+
+        Args:
+            data: Zpracovaná data k exportu
+            output_path: Volitelná cesta k výstupnímu souboru (přepíše config)
+
         Returns:
-            Cesta k vytvořenému CSV souboru
-            
+            Cesta k exportovanému souboru
+
         Raises:
-            CSVExportError: Chyba při exportu
+            ValueError: Pokud nejsou žádná data k exportu
         """
-        self.data_fields_config = data_fields_config
-        
-        # Inicializovat grouper pokud je konfigurace poskytnutá
-        if grouping_config:
-            self.grouper = DataGrouper(grouping_config)
-            if self.grouper.is_enabled():
-                data = self.grouper.group_data(data)
-        
-        # Sestavit cestu k výstupnímu souboru
-        output_path = self._get_output_path()
-        
-        # Vytvořit výstupní adresář pokud neexistuje
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        
-        try:
-            with open(output_path, 'w', newline='', 
-                     encoding=self.output_config.get('encoding', 'utf-8')) as csvfile:
-                
-                self._write_csv_data(csvfile, data)
-                
-        except Exception as e:
-            raise CSVExportError(f"Chyba při zápisu CSV: {e}")
-        
-        return output_path
-    
-    def _get_output_path(self) -> str:
-        """Sestaví kompletní cestu k výstupnímu souboru"""
-        directory = self.output_config.get('directory', './output')
-        filename = self.output_config['filename']
-        
-        # Přidat datum k názvu souboru pokud je požadováno
-        if self.output_config.get('date_suffix', False):
-            name, ext = os.path.splitext(filename)
-            date_str = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f"{name}_{date_str}{ext}"
-        
-        return os.path.join(directory, filename)
-    
-    def _write_csv_data(self, csvfile, data: List[Dict[str, Any]]):
-        """Zapíše data do CSV souboru"""
         if not data:
-            # Prázdný soubor s header
-            if self.output_config.get('include_headers', True):
-                headers = self._get_csv_headers()
-                writer = csv.writer(csvfile, delimiter=self.output_config.get('delimiter', ','))
-                writer.writerow(headers)
-            return
-        
-        # Získat hlavičky
-        headers = self._get_csv_headers()
-        field_mapping = self._get_field_mapping()
-        
-        writer = csv.writer(csvfile, delimiter=self.output_config.get('delimiter', ','))
-        
-        # Zapsat hlavičky
-        if self.output_config.get('include_headers', True):
-            writer.writerow(headers)
-        
-        # Zapsat data s deduplikací a agregací TOID kódů
-        aggregated_data = self._aggregate_duplicate_rows(data)
-        
-        for row_data in aggregated_data:
-            csv_row = self._process_row(row_data, field_mapping, headers)
-            writer.writerow(csv_row)
-    
-    def _get_csv_headers(self) -> List[str]:
-        """Vrátí seznam CSV hlaviček"""
-        headers = []
-        
-        for field_config in self.data_fields_config:
-            field_name = field_config['field']
-            csv_header = field_config.get('csv_header', field_name)
-            
-            # Speciální handling pro koordináty
-            if (field_config.get('wikidata_property') == 'P625' and 
-                field_config.get('format') == 'lat_lon_split'):
-                if ',' in csv_header:
-                    # Rozdělené hlavičky: "lat,lon"
-                    headers.extend(csv_header.split(','))
-                else:
-                    # Fallback
-                    headers.extend([f"{csv_header}_lat", f"{csv_header}_lon"])
-            else:
-                headers.append(csv_header)
-        
-        return headers
-    
-    def _get_field_mapping(self) -> Dict[str, str]:
-        """Vytvoří mapování mezi API poli a konfiguračními poli"""
-        mapping = {}
-        
-        for field_config in self.data_fields_config:
-            field_name = field_config['field']
-            
-            if field_name == 'item_id':
-                mapping['item'] = field_name
-            elif field_config.get('wikidata_property') == 'rdfs:label':
-                mapping['itemLabel'] = field_name
-            else:
-                mapping[field_name] = field_name
-        
-        return mapping
-    
-    def _process_row(self, row_data: Dict[str, Any], 
-                    field_mapping: Dict[str, str], 
-                    headers: List[str]) -> List[str]:
-        """Zpracuje jeden řádek dat pro CSV"""
-        csv_row = []
-        header_index = 0
-        
-        for field_config in self.data_fields_config:
-            field_name = field_config['field']
-            
-            # Najít odpovídající hodnotu v datech
-            api_field = None
-            for api_key, config_field in field_mapping.items():
-                if config_field == field_name:
-                    api_field = api_key
-                    break
-            
-            value = row_data.get(api_field, '') if api_field else ''
-            
-            # Speciální zpracování podle typu pole
-            processed_values = self._process_field_value(value, field_config)
-            
-            # Přidat hodnoty do řádku
-            if isinstance(processed_values, list):
-                csv_row.extend(processed_values)
-                header_index += len(processed_values)
-            else:
-                csv_row.append(processed_values)
-                header_index += 1
-        
-        return csv_row
-    
-    def _process_field_value(self, value: str, field_config: Dict[str, Any]) -> List[str]:
+            raise ValueError("Žádná data k exportu")
+
+        # Určení výstupní cesty
+        if output_path is None:
+            output_path = self.config.get('output', 'file_path')
+
+        output_path = Path(output_path)
+
+        # Zajistit, že existuje výstupní adresář
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        logger.info(f"📤 Exportuji data do: {output_path}")
+
+        # Vytvoření DataFrame
+        df = self._prepare_dataframe(data)
+
+        # Generování sloupců podle konfigurace
+        df = self._order_columns(df)
+
+        # Export do CSV
+        self._write_csv(df, output_path)
+
+        # Statistiky
+        file_size = output_path.stat().st_size / 1024 / 1024  # MB
+        logger.info(f"✅ Export dokončen")
+        logger.info(f"📊 Exportováno záznamů: {len(df)}")
+        logger.info(f"📂 Velikost souboru: {file_size:.2f} MB")
+        logger.info(f"📋 Počet sloupců: {len(df.columns)}")
+
+        return output_path
+
+    def _prepare_dataframe(self, data: List[Dict[str, Any]]) -> pd.DataFrame:
         """
-        Zpracuje hodnotu pole podle konfigurace
-        
+        Připraví pandas DataFrame z dat.
+
         Args:
-            value: Surová hodnota z API
-            field_config: Konfigurace pole
-            
+            data: Data k exportu
+
         Returns:
-            Zpracovaná hodnota nebo seznam hodnot
+            pandas DataFrame
         """
-        if not value:
-            # Prázdná hodnota
-            if (field_config.get('wikidata_property') == 'P625' and 
-                field_config.get('format') == 'lat_lon_split'):
-                return ['', '']  # Dva prázdné sloupce pro lat,lon
-            return ['']
-        
-        # Speciální zpracování koordinátů
-        if (field_config.get('wikidata_property') == 'P625' and 
-            field_config.get('format') == 'lat_lon_split'):
-            return self._process_coordinates(value)
-        
-        # Standardní hodnota
-        return [str(value)]
-    
-    def _process_coordinates(self, coord_value: str) -> List[str]:
+        logger.info("🔄 Připravuji DataFrame...")
+
+        df = pd.DataFrame(data)
+
+        # Kontrola prázdných sloupců
+        empty_cols = df.columns[df.isna().all()].tolist()
+        if empty_cols:
+            logger.warning(f"⚠️ Prázdné sloupce: {', '.join(empty_cols)}")
+
+        return df
+
+    def _order_columns(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Zpracuje koordináty z Wikidata formátu
-        
+        Seřadí sloupce podle konfigurace data_fields.
+
         Args:
-            coord_value: Koordináty ve formátu "Point(lon lat)"
-            
+            df: DataFrame k seřazení
+
         Returns:
-            [latitude, longitude] jako stringy
+            DataFrame se seřazenými sloupci
         """
-        try:
-            # Očekávaný formát: "Point(longitude latitude)"
-            if coord_value.startswith('Point(') and coord_value.endswith(')'):
-                coords = coord_value[6:-1]  # Odstranit "Point(" a ")"
-                parts = coords.split()
-                if len(parts) == 2:
-                    longitude, latitude = parts
-                    return [latitude, longitude]  # CSV: lat, lon
-            
-            # Fallback - vrátit původní hodnotu do obou sloupců
-            return [coord_value, '']
-            
-        except Exception:
-            return ['', '']
-    
-    def get_export_statistics(self, output_path: str) -> Dict[str, Any]:
-        """Vrátí statistiky o exportovaném souboru"""
-        if not os.path.exists(output_path):
-            return {'error': 'Soubor neexistuje'}
-        
-        try:
-            file_size = os.path.getsize(output_path)
-            
-            # Spočítat řádky
-            with open(output_path, 'r', encoding=self.output_config.get('encoding', 'utf-8')) as f:
-                line_count = sum(1 for line in f)
-            
-            # Odečíst hlavičku pokud existuje
-            data_rows = line_count - (1 if self.output_config.get('include_headers', True) else 0)
-            
-            return {
-                'file_path': output_path,
-                'file_size_bytes': file_size,
-                'total_lines': line_count,
-                'data_rows': data_rows,
-                'headers_included': self.output_config.get('include_headers', True),
-                'encoding': self.output_config.get('encoding', 'utf-8'),
-                'delimiter': self.output_config.get('delimiter', ',')
-            }
-            
-        except Exception as e:
-            return {'error': f'Chyba při analýze souboru: {e}'}
-    
-    def _create_dedup_key(self, row_data: Dict[str, Any], field_mapping: Dict[str, str]) -> str:
-        """
-        Vytvoří klíč pro deduplikaci řádků
-        
-        Args:
-            row_data: Data řádku
-            field_mapping: Mapování polí
-            
-        Returns:
-            Deduplikační klíč jako string
-        """
-        # Klíčová pole pro deduplikaci (bez TOID a podobných variabilních polí)
-        key_fields = ['item', 'itemLabel', 'coords', 'adminLabel', 'nutsCode']
-        key_parts = []
-        
-        for field in key_fields:
-            value = row_data.get(field, '')
-            # Normalizovat hodnotu
-            if isinstance(value, str):
-                value = value.strip()
-            key_parts.append(str(value))
-        
-        return '|'.join(key_parts)
-    
-    def _aggregate_duplicate_rows(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """
-        Agreguje duplicitní řádky a spojí TOID kódy
-        
-        Args:
-            data: Seznam dat
-            
-        Returns:
-            Seznam dat bez duplikátů s agregovanými TOID kódy
-        """
-        # Mapa pro agregaci: dedup_key -> aggregated_row
-        aggregated = {}
-        
-        for row_data in data:
-            # Speciální řádky (separátory, totály) nezpracovávat
-            if row_data.get('_group_separator') or row_data.get('_total_row'):
-                # Pro speciální řádky použít unikátní klíč
-                unique_key = f"_special_{len(aggregated)}"
-                aggregated[unique_key] = row_data
-                continue
-            
-            # Vytvořit deduplikační klíč
-            field_mapping = self._get_field_mapping()
-            dedup_key = self._create_dedup_key(row_data, field_mapping)
-            
-            if dedup_key in aggregated:
-                # Sloučit TOID kódy
-                existing_toid = aggregated[dedup_key].get('toid', '')
-                new_toid = row_data.get('toid', '')
-                
-                if new_toid and new_toid not in existing_toid:
-                    if existing_toid:
-                        aggregated[dedup_key]['toid'] = f"{existing_toid}; {new_toid}"
-                    else:
-                        aggregated[dedup_key]['toid'] = new_toid
+        # Generování požadovaného pořadí sloupců
+        ordered_columns = []
+
+        # Nejdříve pole z konfigurace
+        for field in self.config.get_data_fields():
+            if isinstance(field.output_column, list):
+                ordered_columns.extend(field.output_column)
             else:
-                # Nový záznam
-                aggregated[dedup_key] = row_data.copy()
-        
-        return list(aggregated.values())
+                ordered_columns.append(field.output_column)
+
+        # Pak administrativní hierarchie
+        hierarchy = self.config.get('administrative_hierarchy', default=[])
+        for level_data in hierarchy:
+            level = level_data['level']
+            col_name = f"admin_level_{level}"
+            if col_name not in ordered_columns:
+                ordered_columns.append(col_name)
+
+        # Nakonec metadata
+        metadata_cols = ['export_date']
+        for col in metadata_cols:
+            if col not in ordered_columns and col in df.columns:
+                ordered_columns.append(col)
+
+        # Ověřit, že všechny sloupce existují
+        existing_columns = [col for col in ordered_columns if col in df.columns]
+
+        # Přidat jakékoli extra sloupce, které nejsou v konfiguraci
+        extra_columns = [col for col in df.columns if col not in existing_columns]
+        if extra_columns:
+            logger.debug(f"Extra sloupce: {', '.join(extra_columns)}")
+            existing_columns.extend(extra_columns)
+
+        return df[existing_columns]
+
+    def _write_csv(self, df: pd.DataFrame, output_path: Path) -> None:
+        """
+        Zapíše DataFrame do CSV souboru.
+
+        Args:
+            df: DataFrame k exportu
+            output_path: Cesta k výstupnímu souboru
+        """
+        # Nastavení z konfigurace
+        encoding = self.config.get('output', 'encoding', default='utf-8-sig')
+        delimiter = self.config.get('output', 'delimiter', default=',')
+        include_header = self.config.get('output', 'include_header', default=True)
+
+        # Zápis do CSV
+        df.to_csv(
+            output_path,
+            sep=delimiter,
+            encoding=encoding,
+            index=False,
+            header=include_header
+        )
+
+        logger.debug(f"CSV zapsáno: {output_path}")
+
+    def add_metadata_comment(self, output_path: Path) -> None:
+        """
+        Přidá komentář s metadaty na začátek CSV souboru.
+
+        Args:
+            output_path: Cesta k CSV souboru
+        """
+        metadata = [
+            f"# WikiData Extractor Export",
+            f"# Země: {self.config.get('country', 'name')}",
+            f"# Datum: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            f"# Konfigurace: {self.config.config_path}",
+            ""
+        ]
+
+        # Přečíst existující obsah
+        with open(output_path, 'r', encoding=self.config.get('output', 'encoding')) as f:
+            content = f.read()
+
+        # Zapsat s metadaty
+        with open(output_path, 'w', encoding=self.config.get('output', 'encoding')) as f:
+            f.write('\n'.join(metadata))
+            f.write(content)
+
+        logger.debug("Metadata přidána do CSV")
+
+    def create_summary_report(self, data: List[Dict[str, Any]], output_path: Path) -> str:
+        """
+        Vytvoří sumarizační report o exportovaných datech.
+
+        Args:
+            data: Exportovaná data
+            output_path: Cesta k exportovanému CSV
+
+        Returns:
+            Report jako string
+        """
+        df = pd.DataFrame(data)
+
+        report_lines = [
+            "=" * 60,
+            "WikiData Extractor - Export Report",
+            "=" * 60,
+            "",
+            f"Země: {self.config.get('country', 'name')} ({self.config.get('country', 'iso_code')})",
+            f"Datum exportu: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            f"Výstupní soubor: {output_path}",
+            "",
+            "Statistiky:",
+            f"  Celkem záznamů: {len(df)}",
+            f"  Počet sloupců: {len(df.columns)}",
+            f"  Velikost souboru: {output_path.stat().st_size / 1024:.1f} KB",
+            "",
+            "Sloupce:",
+        ]
+
+        # Informace o každém sloupci
+        for col in df.columns:
+            non_null = df[col].notna().sum()
+            null_count = len(df) - non_null
+            coverage = (non_null / len(df) * 100) if len(df) > 0 else 0
+
+            report_lines.append(
+                f"  {col:30s} - {non_null:6d} hodnot ({coverage:5.1f}% pokrytí)"
+            )
+
+        # Statistiky pro numerická pole
+        numeric_cols = df.select_dtypes(include=['number']).columns
+        if len(numeric_cols) > 0:
+            report_lines.extend([
+                "",
+                "Numerické statistiky:",
+            ])
+
+            for col in numeric_cols:
+                if df[col].notna().any():
+                    report_lines.append(
+                        f"  {col:30s} - "
+                        f"min: {df[col].min():.2f}, "
+                        f"max: {df[col].max():.2f}, "
+                        f"průměr: {df[col].mean():.2f}"
+                    )
+
+        report_lines.append("=" * 60)
+
+        report = '\n'.join(report_lines)
+
+        # Uložit report do souboru
+        report_path = output_path.with_suffix('.txt')
+        with open(report_path, 'w', encoding='utf-8') as f:
+            f.write(report)
+
+        logger.info(f"📋 Report uložen: {report_path}")
+
+        return report
+
+    def export_formats(
+        self,
+        data: List[Dict[str, Any]],
+        output_dir: Path,
+        formats: List[str] = None
+    ) -> Dict[str, Path]:
+        """
+        Exportuje data do více formátů.
+
+        Args:
+            data: Data k exportu
+            output_dir: Výstupní adresář
+            formats: Seznam formátů ('csv', 'json', 'excel')
+
+        Returns:
+            Slovník s cestami k exportovaným souborům
+        """
+        if formats is None:
+            formats = ['csv']
+
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        df = pd.DataFrame(data)
+        outputs = {}
+
+        base_name = self.config.get('country', 'iso_code', default='export').lower()
+
+        if 'csv' in formats:
+            csv_path = output_dir / f"{base_name}.csv"
+            self.export(data, str(csv_path))
+            outputs['csv'] = csv_path
+
+        if 'json' in formats:
+            json_path = output_dir / f"{base_name}.json"
+            df.to_json(json_path, orient='records', indent=2, force_ascii=False)
+            logger.info(f"📤 JSON export: {json_path}")
+            outputs['json'] = json_path
+
+        if 'excel' in formats:
+            excel_path = output_dir / f"{base_name}.xlsx"
+            df.to_excel(excel_path, index=False, engine='openpyxl')
+            logger.info(f"📤 Excel export: {excel_path}")
+            outputs['excel'] = excel_path
+
+        return outputs

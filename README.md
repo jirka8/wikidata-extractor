@@ -1,407 +1,364 @@
-# Wikidata Extractor
+# WikiData SPARQL Extraktor
 
-Professional tool for extracting settlement data from Wikidata API using SPARQL queries. Supports flexible configuration of data fields and filters with CSV export functionality.
+Univerzální nástroj pro extrakci strukturovaných dat o městech, obcích a vesnicích z WikiData pomocí SPARQL dotazů.
 
-## Features
+## 🎯 Hlavní funkce
 
-- 🌍 **Settlement data extraction** by country from Wikidata
-- 📋 **Flexible configuration** - customizable data fields and filters  
-- 🔄 **SPARQL Query Builder** - automatic generation of optimized queries
-- 📊 **CSV export** - configurable formatting and output options
-- 📦 **Batch processing** - efficient handling of large datasets
-- ⚡ **Rate limiting** - respects Wikidata API limits (60 req/min)
-- 🛡️ **Error handling** - robust error handling with retry logic
-- 🎯 **CLI interface** - easy command-line usage
+- ✅ **Flexibilní konfigurace** - YAML konfigurace pro libovolnou zemi
+- ✅ **Volitelná datová pole** - Vyberte si pouze pole, která potřebujete
+- ✅ **Administrativní hierarchie** - Podpora komplexních správních struktur
+- ✅ **Robustní komunikace** - Rate limiting, retry logika, error handling
+- ✅ **Export do CSV** - Čistý formát s UTF-8 kódováním
+- ✅ **CLI rozhraní** - Snadné použití z příkazové řádky
+- ✅ **Validace** - Automatická validace konfigurace a dat
 
-## Installation
+## 📋 Požadavky
 
-### Requirements
-- Python 3.7+
-- Internet connection
+- Python 3.9 nebo vyšší
+- Závislosti uvedené v `requirements.txt`
 
-### Installation Steps
+## 🚀 Instalace
+
 ```bash
-# 1. Clone the repository
-git clone https://github.com/yourusername/wikidata-extractor.git
+# Klonování/stažení projektu
 cd wikidata-extractor
 
-# 2. Install dependencies
+# Vytvoření virtuálního prostředí (doporučeno)
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# nebo
+venv\Scripts\activate  # Windows
+
+# Instalace závislostí
 pip install -r requirements.txt
-
-# 3. Test connection
-python3 main.py configs/czech_cities.yaml --test-connection
 ```
 
-## Quick Start
+## 📖 Základní použití
 
-### 1. Basic Usage
+### Rychlé použití s předpřipravenými konfiguracemi
+
 ```bash
-# Extract Czech cities to CSV
-python3 main.py configs/czech_cities.yaml
+# Česká republika
+python wikidata_extractor.py --country CZ
 
-# Output: ./output/czech_cities.csv
+# Slovensko
+python wikidata_extractor.py --country SK
+
+# Polsko
+python wikidata_extractor.py --country PL
+
+# Německo
+python wikidata_extractor.py --country DE
 ```
 
-### 2. View Generated SPARQL Query
+### Použití s vlastní konfigurací
+
 ```bash
-python3 main.py configs/czech_cities.yaml --dry-run --verbose
+python wikidata_extractor.py --config configs/czech_republic.yaml
 ```
 
-### 3. Save SPARQL Query to File
+### Přizpůsobení výstupu
+
 ```bash
-python3 main.py configs/czech_cities.yaml --save-query my_query.sparql --dry-run
+# Vlastní výstupní soubor
+python wikidata_extractor.py --country CZ --output moje_data.csv
+
+# S detailním výpisem
+python wikidata_extractor.py --country CZ --verbose
+
+# S logováním do souboru
+python wikidata_extractor.py --country CZ --log-file extractor.log
+
+# Tichý režim (pouze chyby)
+python wikidata_extractor.py --country CZ --quiet
 ```
 
-### 4. Batch Processing
+### Speciální režimy
+
 ```bash
-# Enable batch processing for large datasets
-python3 main.py configs/uk_settlements_complete.yaml --batch --batch-size 500
+# Zobrazení SPARQL dotazu bez spuštění
+python wikidata_extractor.py --config config.yaml --dry-run
+
+# Validace konfiguračního souboru
+python wikidata_extractor.py --config config.yaml --validate-config
+
+# Test spojení s WikiData
+python wikidata_extractor.py --config config.yaml --test-connection
+
+# Vytvoření sumarizačního reportu
+python wikidata_extractor.py --country CZ --create-report
 ```
 
-## Configuration
+## ⚙️ Struktura konfiguračního souboru
 
-### Basic Configuration File (YAML)
+Konfigurační soubor je ve formátu YAML a obsahuje tyto sekce:
+
+### 1. Základní nastavení země
 
 ```yaml
-# Target country
 country:
-  wikidata_id: "Q213"           # Czech Republic
   name: "Czech Republic"
-  language_codes: ["cs", "en"]
-
-# Settlement types
-settlement_types:
-  include: ["Q515", "Q3957"]    # cities and towns
-
-# Data fields to extract
-data_fields:
-  - field: "item_id"
-    required: true
-    csv_header: "wikidata_id"
-    
-  - field: "name"
-    wikidata_property: "rdfs:label"
-    required: true
-    csv_header: "name"
-    
-  - field: "coordinates"
-    wikidata_property: "P625"
-    csv_header: "latitude,longitude"
-    format: "lat_lon_split"
-
-# Output configuration
-output:
-  filename: "czech_cities.csv"
-  directory: "./output"
-
-# Batch processing (optional)
-query:
-  batch_processing:
-    enabled: true
-    batch_size: 1000
-    max_results: 10000
+  wikidata_qid: "Q213"       # QID země ve WikiData
+  iso_code: "CZ"              # ISO 3166-1 alpha-2
+  language: "cs"              # Jazyk pro názvy
 ```
 
-### Wikidata Properties for Settlements
+### 2. Administrativní hierarchie
 
-| Property | Description | Example |
-|----------|-------------|---------|
-| P625 | GPS coordinates | 50.0755,14.4378 |
-| P281 | Postal code | 110 00 |
-| P1937 | NUTS code | CZ010 |
-| P782 | LAU code | CZ0100 |
-| P1082 | Population | 1324277 |
-| P131 | Administrative territory | Region |
-
-### Wikidata Entity Types for Settlements
-
-| Entity ID | Type | Description |
-|-----------|------|-------------|
-| Q515 | city | Urban settlement |
-| Q3957 | town | Small city/town |
-| Q532 | village | Rural settlement |
-| Q486972 | human settlement | Generic settlement type |
-
-## Usage Examples
-
-### 1. Czech Cities with Coordinates
 ```yaml
-# configs/czech_cities_coords.yaml
-country:
-  wikidata_id: "Q213"
-
-settlement_types:
-  include: ["Q515"]
-
-data_fields:
-  - field: "item_id"
-    required: true
-  - field: "name"
-    wikidata_property: "rdfs:label"
-    required: true
-  - field: "coordinates"
-    wikidata_property: "P625"
-    required: true
-    format: "lat_lon_split"
-
-filters:
-  coordinates_required: true
-
-output:
-  filename: "czech_cities_coords.csv"
+administrative_hierarchy:
+  - level: 1
+    name: "Kraj"
+    wikidata_property: "P131"
+    wikidata_instance_of: "Q38911"
+  - level: 2
+    name: "Okres"
+    wikidata_property: "P131"
+    wikidata_instance_of: "Q548611"
 ```
 
-### 2. Slovak Settlements with Population
-```yaml
-# configs/slovakia_population.yaml
-country:
-  wikidata_id: "Q214"
-  name: "Slovakia"
-  language_codes: ["sk", "cs", "en"]
+### 3. Typy sídel
 
+```yaml
+settlement_types:
+  - type: "city"
+    wikidata_qid: "Q515"
+    label: "Město"
+  - type: "village"
+    wikidata_qid: "Q532"
+    label: "Vesnice"
+```
+
+### 4. Datová pole
+
+```yaml
 data_fields:
-  - field: "item_id"
+  - field_name: "wikidata_id"
+    wikidata_property: "SUBJECT"
     required: true
-  - field: "name"
-    wikidata_property: "rdfs:label"
+    output_column: "wikidata_id"
+    description: "WikiData QID"
+
+  - field_name: "coordinates"
+    wikidata_property: "P625"
     required: true
-    language: "sk"
-  - field: "population"
+    output_column: ["latitude", "longitude"]
+    description: "GPS souřadnice"
+
+  - field_name: "population"
     wikidata_property: "P1082"
-    csv_header: "population"
-
-filters:
-  population:
-    min: 10000
-
-output:
-  filename: "slovakia_large_cities.csv"
-  date_suffix: true
+    required: false
+    output_column: "population"
+    data_type: "integer"
+    description: "Počet obyvatel"
 ```
 
-### 3. German Cities with Complete Data
-```yaml
-# configs/germany_complete.yaml
-country:
-  wikidata_id: "Q183"
-  name: "Germany" 
-  language_codes: ["de", "en"]
+### 5. Filtry
 
-settlement_types:
-  include: ["Q515", "Q3957"]
-
-data_fields:
-  - field: "item_id"
-    required: true
-  - field: "name"
-    wikidata_property: "rdfs:label"
-    required: true
-  - field: "coordinates"
-    wikidata_property: "P625"
-    format: "lat_lon_split"
-  - field: "postal_code"
-    wikidata_property: "P281"
-  - field: "nuts_code"
-    wikidata_property: "P1937"
-  - field: "population"
-    wikidata_property: "P1082"
-
-query:
-  batch_processing:
-    enabled: true
-    batch_size: 1000
-    max_results: 5000
-
-output:
-  filename: "germany_cities.csv"
-  encoding: "utf-8"
-```
-
-## CLI Parameters
-
-```bash
-python3 main.py <config_file> [options]
-```
-
-### Available Parameters
-
-| Parameter | Description |
-|-----------|-------------|
-| `--test-connection` | Test connection to Wikidata API only |
-| `--dry-run` | Show query without executing it |
-| `--save-query FILE` | Save SPARQL query to file |
-| `--verbose` | Detailed output with diagnostics |
-| `--batch` | Enable batch processing (overrides config) |
-| `--batch-size N` | Batch size for batch processing |
-| `--max-results N` | Maximum number of results |
-| `--help` | Show help message |
-
-### Command Examples
-
-```bash
-# Test connection
-python3 main.py configs/czech_cities.yaml --test-connection
-
-# Show query without execution
-python3 main.py configs/czech_cities.yaml --dry-run --verbose
-
-# Save query and execute
-python3 main.py configs/czech_cities.yaml --save-query backup.sparql --verbose
-
-# Batch processing with custom size
-python3 main.py configs/uk_settlements_complete.yaml --batch --batch-size 500 --max-results 2000
-
-# Display generated query only
-python3 main.py configs/czech_cities.yaml --dry-run
-```
-
-## Output Formats
-
-### CSV Output
-```csv
-wikidata_id,name,latitude,longitude,postal_code
-Q8385,Ostrava,49.835555555,18.2925,700 00
-Q14960,Brno,49.195277777,16.608333333,602 00
-Q1085,Praha,50.0833,14.4667,110 00
-```
-
-### Coordinate Formatting Options
-- `lat_lon_split`: Split into two columns (latitude, longitude)
-- `point`: Keep "Point(lon lat)" format
-- `wkt`: Well-Known Text format
-
-## Advanced Configuration
-
-### Filters
 ```yaml
 filters:
-  coordinates_required: true    # Only settlements with GPS coordinates
-  population:
-    min: 50000                 # Minimum population
-    max: 1000000               # Maximum population
+  min_population: 1000           # Minimální populace
+  max_population: null           # Maximální populace
+  settlement_types_include:      # Pouze tyto typy
+    - "Q515"   # city
+    - "Q532"   # village
+  exclude_historical: true       # Vyloučit historická sídla
+  bounding_box: null             # [lat_min, lon_min, lat_max, lon_max]
 ```
 
-### API Settings
+### 6. Výstupní nastavení
+
 ```yaml
-api:
-  timeout: 60                  # Timeout in seconds
-  retry_attempts: 5            # Number of retry attempts
-  retry_delay: 10              # Delay between retries
-  rate_limit: 30               # Requests per minute
+output:
+  file_path: "output/czech_municipalities.csv"
+  encoding: "utf-8-sig"          # UTF-8 s BOM pro Excel
+  delimiter: ","
+  include_header: true
+  date_format: "%Y-%m-%d"
+  null_value: ""
 ```
 
-### Query Optimization
+### 7. Nastavení SPARQL dotazu
+
 ```yaml
-query:
-  limit: 5000                  # Result limit
-  batch_processing:
-    enabled: true              # Enable batch processing
-    batch_size: 1000           # Batch size
-    max_results: 10000         # Maximum total results
-  enable_service_timeout: true # Use SERVICE label optimization
+query_settings:
+  endpoint: "https://query.wikidata.org/sparql"
+  timeout: 300                   # Timeout v sekundách
+  user_agent: "WikiDataExtractor/1.0"
+  rate_limit_delay: 1.0         # Pauza mezi dotazy (s)
+  batch_size: 1000              # Velikost dávky
+  retry_attempts: 3             # Počet pokusů při chybě
 ```
 
-## Troubleshooting
+## 📊 Dostupné WikiData Properties
 
-### Common Errors
+Nejčastěji používané properties pro extrakci dat o sídlech:
 
-**🔸 "Invalid Wikidata ID"**
-```
-✗ Configuration error: Invalid Wikidata ID: INVALID_ID
-```
-- **Solution**: Use Q[number] format, e.g., Q213 for Czech Republic
+| Property | Popis | Datový typ |
+|----------|-------|------------|
+| P31 | Instance of (typ entity) | Item |
+| P17 | Country (země) | Item |
+| P131 | Located in (správní jednotka) | Item |
+| P625 | Coordinates (GPS souřadnice) | Globe coordinate |
+| P1082 | Population (počet obyvatel) | Quantity |
+| P2044 | Elevation (nadmořská výška) | Quantity |
+| P2046 | Area (rozloha) | Quantity |
+| P281 | Postal code (PSČ) | String |
+| P856 | Website (oficiální web) | URL |
+| P571 | Inception (datum založení) | Time |
+| P605 | NUTS code | String |
+| P421 | Timezone (časové pásmo) | Item |
+| P41 | Flag image (vlajka) | Commons media |
+| P94 | Coat of arms (znak) | Commons media |
 
-**🔸 "Query timeout"**
-```
-✗ Wikidata API error: Query timed out after all attempts
-```
-- **Solution**: Increase `api.timeout` or enable batch processing with smaller `batch_size`
+Úplný seznam na: https://www.wikidata.org/wiki/Wikidata:List_of_properties
 
-**🔸 "Rate limit exceeded"**
-```
-Rate limiting: waiting 1.23s
-```
-- **Normal**: Automatic throttling to respect API limits
-
-**🔸 "Large dataset issues"**
-```
-✗ Query too complex or dataset too large
-```
-- **Solution**: Enable batch processing and set reasonable `max_results`
-
-### Debug Mode
-```bash
-python3 main.py config.yaml --verbose
-```
-
-### SPARQL Query Inspection
-```bash
-python3 main.py config.yaml --save-query debug.sparql --dry-run
-```
-
-## Frequently Used Countries
-
-| Country | Wikidata ID | Code |
-|---------|-------------|------|
-| Czech Republic | Q213 | CZ |
-| Slovakia | Q214 | SK |
-| Germany | Q183 | DE |
-| Austria | Q40 | AT |
-| Poland | Q36 | PL |
-| Hungary | Q28 | HU |
-| United Kingdom | Q145 | GB |
-| Netherlands | Q55 | NL |
-
-## Project Structure
+## 🏗️ Struktura projektu
 
 ```
 wikidata-extractor/
-├── src/                       # Source code
+├── wikidata_extractor.py      # Hlavní skript
+├── requirements.txt            # Python závislosti
+├── README.md                   # Dokumentace
+├── src/                        # Zdrojové moduly
 │   ├── __init__.py
-│   ├── config_manager.py      # Configuration management
-│   ├── query_builder.py       # SPARQL query building
-│   ├── wikidata_client.py     # Wikidata API client
-│   ├── csv_exporter.py        # CSV export functionality
-│   └── data_grouper.py        # Data grouping utilities
-├── configs/                   # Configuration files
-│   ├── czech_cities.yaml     # Czech Republic example
-│   ├── slovakia_complete.yaml # Slovakia complete data
-│   ├── germany_cities.yaml   # German cities
-│   ├── uk_settlements_complete.yaml # UK settlements
-│   ├── netherlands_settlements.yaml # Dutch settlements
-│   ├── test_minimal.yaml     # Minimal test configuration
-│   └── test_advanced.yaml    # Advanced test configuration
-├── output/                    # Generated CSV files
-│   ├── czech_cities.csv
-│   ├── uk_settlements_complete.csv
-│   └── ...
-├── main.py                    # Main script
-├── requirements.txt           # Python dependencies
-├── analysis.md               # Project analysis
-└── README.md                 # This documentation
+│   ├── config_manager.py       # Správa konfigurace
+│   ├── query_builder.py        # SPARQL query builder
+│   ├── wikidata_client.py      # WikiData klient
+│   ├── data_processor.py       # Zpracování dat
+│   └── csv_exporter.py         # CSV export
+├── configs/                    # Konfigurační soubory
+│   ├── czech_republic.yaml
+│   ├── slovakia.yaml
+│   ├── poland.yaml
+│   └── germany.yaml
+├── output/                     # Výstupní soubory
+└── examples/                   # Příklady
 ```
 
-## Available Configurations
+## 🎓 Příklady použití
 
-The project includes several pre-configured examples:
+### Příklad 1: Základní export českých měst
 
-- **czech_cities.yaml** - Czech cities and towns
-- **slovakia_complete.yaml** - Complete Slovak settlements
-- **germany_cities.yaml** - German cities
-- **uk_settlements_complete.yaml** - UK settlements with complete data
-- **netherlands_settlements.yaml** - Dutch settlements
-- **test_minimal.yaml** - Basic testing configuration
-- **test_advanced.yaml** - Advanced testing with filters
+```bash
+python wikidata_extractor.py --country CZ
+```
 
-## Performance Considerations
+Výstup: `output/czech_municipalities.csv` s kompletními daty o českých sídlech.
 
-- **Batch Processing**: For large datasets (>1000 results), enable batch processing
-- **Rate Limiting**: Automatic throttling respects Wikidata API limits
-- **Memory Efficient**: Streaming processing for large datasets
-- **Configurable Timeouts**: Adjustable timeouts for different network conditions
+### Příklad 2: Export s custom konfigurací
 
-## License and Support
+Vytvořte vlastní konfigurační soubor (např. `my_config.yaml`) a upravte dle potřeby.
 
-Project created for data extraction and analysis purposes. Open for educational and research use.
+```bash
+python wikidata_extractor.py --config my_config.yaml --verbose
+```
 
-For technical support or bug reports, please create an issue in the GitHub repository.
+### Příklad 3: Export pouze velkých měst
+
+V konfiguraci nastavte:
+
+```yaml
+filters:
+  min_population: 10000
+  settlement_types_include:
+    - "Q515"  # pouze města
+```
+
+### Příklad 4: Dry run - zobrazení dotazu
+
+```bash
+python wikidata_extractor.py --country CZ --dry-run
+```
+
+Zobrazí SPARQL dotaz bez jeho provedení.
+
+## 🔧 Řešení problémů
+
+### Chyba při spojení s WikiData
+
+```
+❌ Chyba spojení: Connection timeout
+```
+
+**Řešení:** Zkuste zvýšit timeout v konfiguraci:
+
+```yaml
+query_settings:
+  timeout: 600  # 10 minut
+```
+
+### Žádné výsledky
+
+```
+⚠️ Žádná data nebyla nalezena
+```
+
+**Možné příčiny:**
+- Špatné QID v konfiguraci
+- Příliš restriktivní filtry
+- Nesprávná instance_of hodnota
+
+**Řešení:** Použijte `--dry-run` pro kontrolu SPARQL dotazu.
+
+### Chybějící hodnoty v CSV
+
+```
+⚠️ 142 settlements missing population data
+```
+
+To je normální - ne všechna sídla ve WikiData mají kompletní data.
+
+## 🤝 Přispívání
+
+Pokud chcete přispět k projektu:
+
+1. Vytvořte fork projektu
+2. Vytvořte feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit změny (`git commit -m 'Add some AmazingFeature'`)
+4. Push do branch (`git push origin feature/AmazingFeature`)
+5. Otevřete Pull Request
+
+## 📝 Licence
+
+Tento projekt je licencován pod MIT licencí.
+
+WikiData data jsou dostupná pod CC0 Public Domain licencí.
+
+## 🔗 Užitečné odkazy
+
+- [WikiData Query Service](https://query.wikidata.org/)
+- [WikiData Properties List](https://www.wikidata.org/wiki/Wikidata:List_of_properties)
+- [SPARQL Tutorial](https://www.wikidata.org/wiki/Wikidata:SPARQL_tutorial)
+- [WikiData Data Model](https://www.mediawiki.org/wiki/Wikibase/DataModel)
+
+## 📞 Podpora
+
+Pokud narazíte na problém nebo máte dotaz:
+
+1. Zkontrolujte dokumentaci výše
+2. Podívejte se na [Issues](https://github.com/your-repo/issues)
+3. Vytvořte nový issue s detailním popisem problému
+
+## 🎉 Příklady výstupů
+
+### Ukázkový CSV výstup
+
+```csv
+wikidata_id,name_cs,name_en,type,latitude,longitude,population,elevation_m,area_km2,postal_code,website,admin_level_1,admin_level_2,export_date
+Q1085,Praha,Prague,Q515,50.0833,14.4167,1309000,235.0,496.21,110 00,https://www.praha.eu,Hlavní město Praha,,2024-11-01
+Q14960,Brno,Brno,Q515,49.1952,16.6079,380681,237.0,230.19,602 00,https://www.brno.cz,Jihomoravský kraj,Brno-město,2024-11-01
+```
+
+## ⚠️ Poznámky
+
+- WikiData se neustále aktualizuje, data se mohou lišit
+- Rate limiting je důležitý pro ochranu WikiData serveru
+- Některá sídla mohou mít neúplná data
+- Pro velké extrakce může trvat delší dobu (minutes až desítky minut)
+
+---
+
+**Verze:** 1.0.0
+**Autor:** WikiData Extractor Project
+**Datum:** 2024-11-01

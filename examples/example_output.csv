@@ -1,0 +1,4 @@
+wikidata_id,name_cs,name_en,type,latitude,longitude,population,elevation_m,area_km2,postal_code,website,admin_level_1,admin_level_2,admin_level_3,export_date
+Q1085,Praha,Prague,město,50.0833,14.4167,1309000,235.0,496.21,110 00,https://www.praha.eu,Hlavní město Praha,,,2024-11-01
+Q14960,Brno,Brno,město,49.1952,16.6079,380681,237.0,230.19,602 00,https://www.brno.cz,Jihomoravský kraj,Brno-město,,2024-11-01
+Q5838,Plzeň,Plzeň,město,49.7384,13.3736,169033,310.0,137.65,301 00,https://www.plzen.eu,Plzeňský kraj,Plzeň-město,,2024-11-01

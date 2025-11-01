@@ -1,0 +1,120 @@
+# WikiData Extraktor - Konfigurace pro Německo
+
+country:
+  name: "Germany"
+  wikidata_qid: "Q183"
+  iso_code: "DE"
+  language: "de"
+
+administrative_hierarchy:
+  - level: 1
+    name: "Bundesland"
+    wikidata_property: "P131"
+    wikidata_instance_of: "Q1221156"
+  - level: 2
+    name: "Regierungsbezirk"
+    wikidata_property: "P131"
+    wikidata_instance_of: "Q22865"
+  - level: 3
+    name: "Landkreis"
+    wikidata_property: "P131"
+    wikidata_instance_of: "Q106658"
+
+settlement_types:
+  - type: "city"
+    wikidata_qid: "Q515"
+    label: "Stadt"
+  - type: "town"
+    wikidata_qid: "Q3957"
+    label: "Kleinstadt"
+  - type: "village"
+    wikidata_qid: "Q532"
+    label: "Dorf"
+  - type: "municipality"
+    wikidata_qid: "Q262166"
+    label: "Gemeinde"
+
+data_fields:
+  - field_name: "wikidata_id"
+    wikidata_property: "SUBJECT"
+    required: true
+    output_column: "wikidata_id"
+    description: "WikiData QID"
+
+  - field_name: "name_local"
+    wikidata_property: "rdfs:label"
+    language_filter: "de"
+    required: true
+    output_column: "name_de"
+    description: "Name auf Deutsch"
+
+  - field_name: "name_english"
+    wikidata_property: "rdfs:label"
+    language_filter: "en"
+    required: false
+    output_column: "name_en"
+    description: "English name"
+
+  - field_name: "settlement_type"
+    wikidata_property: "P31"
+    required: true
+    output_column: "type"
+    description: "Siedlungstyp"
+
+  - field_name: "coordinates"
+    wikidata_property: "P625"
+    required: true
+    output_column: ["latitude", "longitude"]
+    description: "GPS-Koordinaten"
+
+  - field_name: "population"
+    wikidata_property: "P1082"
+    required: false
+    output_column: "population"
+    data_type: "integer"
+    description: "Einwohnerzahl"
+
+  - field_name: "elevation"
+    wikidata_property: "P2044"
+    required: false
+    output_column: "elevation_m"
+    data_type: "float"
+    description: "Höhe über dem Meeresspiegel in Metern"
+
+  - field_name: "area"
+    wikidata_property: "P2046"
+    required: false
+    output_column: "area_km2"
+    data_type: "float"
+    description: "Fläche in km²"
+
+  - field_name: "postal_code"
+    wikidata_property: "P281"
+    required: false
+    output_column: "postal_code"
+    description: "Postleitzahl"
+
+  - field_name: "website"
+    wikidata_property: "P856"
+    required: false
+    output_column: "website"
+    description: "Offizielle Website"
+
+filters:
+  min_population: null
+  max_population: null
+  settlement_types_include:
+    - "Q515"
+    - "Q3957"
+    - "Q532"
+    - "Q262166"
+  exclude_historical: true
+  bounding_box: null
+
+output:
+  file_path: "output/germany_municipalities.csv"
+  encoding: "utf-8-sig"
+  delimiter: ","
+  include_header: true
+  date_format: "%Y-%m-%d"
+  null_value: ""

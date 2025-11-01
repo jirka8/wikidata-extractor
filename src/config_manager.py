@@ -1,169 +1,303 @@
-"""
-Správa konfigurace pro Wikidata Extractor
-"""
+"""Správa konfigurace pro WikiData Extraktor."""
 
-import os
-import re
+from dataclasses import dataclass
+from typing import List, Dict, Optional, Any, Union
 import yaml
-from typing import Dict, List, Any, Optional
+import logging
+from pathlib import Path
+import jsonschema
 
 
-class ConfigValidationError(Exception):
-    """Chyba při validaci konfigurace"""
-    pass
+logger = logging.getLogger('WikiDataExtractor.Config')
 
 
-class ConfigManager:
-    """Správce konfigurace - načítání a validace konfiguračních souborů"""
-    
-    def __init__(self):
-        self.config = None
-        self._wikidata_id_pattern = re.compile(r'^Q[0-9]+$')
-        self._property_id_pattern = re.compile(r'^P[0-9]+$')
-    
-    def load_config(self, config_path: str) -> Dict[str, Any]:
+@dataclass
+class DataField:
+    """Reprezentace datového pole pro extrakci."""
+    field_name: str
+    wikidata_property: str
+    required: bool
+    output_column: Union[str, List[str]]
+    data_type: Optional[str] = None
+    language_filter: Optional[str] = None
+    description: Optional[str] = None
+
+
+class ConfigValidator:
+    """Validace konfiguračních souborů."""
+
+    # JSON Schema pro validaci konfigurace
+    CONFIG_SCHEMA = {
+        "type": "object",
+        "required": ["country", "data_fields", "output"],
+        "properties": {
+            "country": {
+                "type": "object",
+                "required": ["name", "wikidata_qid", "iso_code", "language"],
+                "properties": {
+                    "name": {"type": "string"},
+                    "wikidata_qid": {"type": "string", "pattern": "^Q[0-9]+$"},
+                    "iso_code": {"type": "string"},
+                    "language": {"type": "string"}
+                }
+            },
+            "administrative_hierarchy": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["level", "name", "wikidata_property"],
+                    "properties": {
+                        "level": {"type": "integer"},
+                        "name": {"type": "string"},
+                        "wikidata_property": {"type": "string"},
+                        "wikidata_instance_of": {
+                            "oneOf": [
+                                {"type": "string"},
+                                {"type": "array", "items": {"type": "string"}}
+                            ]
+                        }
+                    }
+                }
+            },
+            "settlement_types": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["type", "wikidata_qid", "label"],
+                    "properties": {
+                        "type": {"type": "string"},
+                        "wikidata_qid": {"type": "string", "pattern": "^Q[0-9]+$"},
+                        "label": {"type": "string"}
+                    }
+                }
+            },
+            "data_fields": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                    "type": "object",
+                    "required": ["field_name", "wikidata_property", "required", "output_column"],
+                    "properties": {
+                        "field_name": {"type": "string"},
+                        "wikidata_property": {"type": "string"},
+                        "required": {"type": "boolean"},
+                        "output_column": {
+                            "oneOf": [
+                                {"type": "string"},
+                                {"type": "array", "items": {"type": "string"}}
+                            ]
+                        },
+                        "data_type": {"type": "string"},
+                        "language_filter": {"type": "string"},
+                        "description": {"type": "string"}
+                    }
+                }
+            },
+            "filters": {
+                "type": "object",
+                "properties": {
+                    "min_population": {"oneOf": [{"type": "integer"}, {"type": "null"}]},
+                    "max_population": {"oneOf": [{"type": "integer"}, {"type": "null"}]},
+                    "settlement_types_include": {"type": "array", "items": {"type": "string"}},
+                    "exclude_historical": {"type": "boolean"},
+                    "bounding_box": {
+                        "oneOf": [
+                            {"type": "null"},
+                            {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4}
+                        ]
+                    }
+                }
+            },
+            "output": {
+                "type": "object",
+                "required": ["file_path"],
+                "properties": {
+                    "file_path": {"type": "string"},
+                    "encoding": {"type": "string"},
+                    "delimiter": {"type": "string"},
+                    "include_header": {"type": "boolean"},
+                    "date_format": {"type": "string"},
+                    "null_value": {"type": "string"}
+                }
+            },
+            "query_settings": {
+                "type": "object",
+                "properties": {
+                    "endpoint": {"type": "string"},
+                    "timeout": {"type": "integer"},
+                    "user_agent": {"type": "string"},
+                    "rate_limit_delay": {"type": "number"},
+                    "batch_size": {"type": "integer"},
+                    "retry_attempts": {"type": "integer"}
+                }
+            }
+        }
+    }
+
+    def validate(self, config_data: Dict[str, Any]) -> bool:
         """
-        Načte konfiguraci ze souboru
-        
+        Validuje konfigurační data proti JSON schema.
+
+        Args:
+            config_data: Konfigurace k validaci
+
+        Returns:
+            True pokud je konfigurace validní
+
+        Raises:
+            jsonschema.ValidationError: Pokud konfigurace není validní
+        """
+        try:
+            jsonschema.validate(instance=config_data, schema=self.CONFIG_SCHEMA)
+            logger.info("✅ Konfigurace je validní")
+
+            # Dodatečné validace
+            self._validate_qids(config_data)
+            self._validate_properties(config_data)
+            self._validate_required_fields(config_data)
+
+            return True
+
+        except jsonschema.ValidationError as e:
+            logger.error(f"❌ Chyba validace konfigurace: {e.message}")
+            raise
+
+    def _validate_qids(self, config_data: Dict[str, Any]) -> None:
+        """Validuje WikiData QID formát."""
+        qid_fields = [
+            ('country', 'wikidata_qid'),
+        ]
+
+        for section, field in qid_fields:
+            if section in config_data and field in config_data[section]:
+                qid = config_data[section][field]
+                if not qid.startswith('Q') or not qid[1:].isdigit():
+                    raise ValueError(f"Neplatný QID formát: {qid}")
+
+    def _validate_properties(self, config_data: Dict[str, Any]) -> None:
+        """Validuje WikiData property formát (P sufix)."""
+        if 'data_fields' in config_data:
+            for field in config_data['data_fields']:
+                prop = field.get('wikidata_property', '')
+                # SUBJECT a rdfs:label jsou speciální případy
+                if prop not in ['SUBJECT', 'rdfs:label'] and not prop.startswith('P'):
+                    logger.warning(f"⚠️ Nestandardní property: {prop}")
+
+    def _validate_required_fields(self, config_data: Dict[str, Any]) -> None:
+        """Kontroluje, zda jsou definována povinná pole."""
+        if 'data_fields' not in config_data:
+            raise ValueError("Chybí sekce 'data_fields'")
+
+        required_fields = [f for f in config_data['data_fields'] if f.get('required', False)]
+        if not required_fields:
+            logger.warning("⚠️ Žádné pole není označeno jako povinné")
+
+
+class Config:
+    """Načítání a správa konfigurace projektu."""
+
+    def __init__(self, config_path: Union[str, Path]):
+        """
+        Inicializace konfigurace.
+
         Args:
             config_path: Cesta ke konfiguračnímu souboru
-            
-        Returns:
-            Slovník s konfigurací
-            
-        Raises:
-            ConfigValidationError: Chyba při validaci
-            FileNotFoundError: Soubor neexistuje
         """
-        if not os.path.exists(config_path):
-            raise FileNotFoundError(f"Konfigurační soubor nenalezen: {config_path}")
-        
-        try:
-            with open(config_path, 'r', encoding='utf-8') as f:
-                config = yaml.safe_load(f)
-        except yaml.YAMLError as e:
-            raise ConfigValidationError(f"Chyba při parsování YAML: {e}")
-        
-        self.config = config
-        self._validate_config()
-        return config
-    
-    def _validate_config(self):
-        """Validuje načtenou konfiguraci"""
-        if not self.config:
-            raise ConfigValidationError("Prázdná konfigurace")
-        
-        self._validate_country()
-        self._validate_data_fields()
-        self._validate_output()
-        self._validate_dependencies()
-    
-    def _validate_country(self):
-        """Validuje sekci country"""
-        if 'country' not in self.config:
-            raise ConfigValidationError("Chybí sekce 'country'")
-        
-        country = self.config['country']
-        if 'wikidata_id' not in country:
-            raise ConfigValidationError("Chybí 'country.wikidata_id'")
-        
-        wikidata_id = country['wikidata_id']
-        if not self._wikidata_id_pattern.match(wikidata_id):
-            raise ConfigValidationError(
-                f"Neplatné Wikidata ID: {wikidata_id}. Očekáván formát Q[číslo]"
-            )
-    
-    def _validate_data_fields(self):
-        """Validuje sekci data_fields"""
-        if 'data_fields' not in self.config:
-            raise ConfigValidationError("Chybí sekce 'data_fields'")
-        
-        data_fields = self.config['data_fields']
-        if not data_fields or len(data_fields) == 0:
-            raise ConfigValidationError("Sekce 'data_fields' nesmí být prázdná")
-        
-        required_fields = []
-        for i, field in enumerate(data_fields):
-            if 'field' not in field:
-                raise ConfigValidationError(f"Pole #{i}: chybí 'field'")
-            
-            # Validace wikidata_property
-            if 'wikidata_property' in field and field['wikidata_property']:
-                prop = field['wikidata_property']
-                if prop != 'rdfs:label' and not self._property_id_pattern.match(prop):
-                    raise ConfigValidationError(
-                        f"Pole '{field['field']}': neplatná property {prop}"
-                    )
-            
-            # Sledování povinných polí
-            if field.get('required', False):
-                required_fields.append(field['field'])
-        
-        if not required_fields:
-            raise ConfigValidationError("Alespoň jedno pole musí být povinné")
-    
-    def _validate_output(self):
-        """Validuje sekci output"""
-        if 'output' not in self.config:
-            raise ConfigValidationError("Chybí sekce 'output'")
-        
-        output = self.config['output']
-        if 'filename' not in output or not output['filename']:
-            raise ConfigValidationError("Chybí nebo prázdný 'output.filename'")
-        
-        # Kontrola platnosti názvu souboru
-        filename = output['filename']
-        if any(char in filename for char in ['<', '>', ':', '"', '|', '?', '*']):
-            raise ConfigValidationError(f"Neplatný název souboru: {filename}")
-    
-    def _validate_dependencies(self):
-        """Validuje vzájemné závislosti v konfiguraci"""
-        # Pokud coordinates_required: true, pak coordinates musí být required
-        filters = self.config.get('filters', {})
-        if filters.get('coordinates_required', False):
-            coord_field = self._find_field_by_property('P625')
-            if not coord_field or not coord_field.get('required', False):
-                raise ConfigValidationError(
-                    "Pokud 'filters.coordinates_required' je true, "
-                    "pole 'coordinates' musí být required"
-                )
-    
-    def _find_field_by_property(self, property_id: str) -> Optional[Dict[str, Any]]:
-        """Najde pole podle wikidata_property"""
-        for field in self.config.get('data_fields', []):
-            if field.get('wikidata_property') == property_id:
-                return field
-        return None
-    
-    def get_country_id(self) -> str:
-        """Vrátí Wikidata ID země"""
-        return self.config['country']['wikidata_id']
-    
-    def get_data_fields(self) -> List[Dict[str, Any]]:
-        """Vrátí seznam datových polí"""
-        return self.config['data_fields']
-    
-    def get_output_config(self) -> Dict[str, Any]:
-        """Vrátí konfiguraci výstupu"""
-        return self.config.get('output', {})
-    
-    def get_api_config(self) -> Dict[str, Any]:
-        """Vrátí konfiguraci API"""
+        self.config_path = Path(config_path)
+        self.data: Dict[str, Any] = {}
+        self.validator = ConfigValidator()
+        self._load()
+
+    def _load(self) -> None:
+        """Načte a validuje konfigurační soubor."""
+        if not self.config_path.exists():
+            raise FileNotFoundError(f"Konfigurační soubor nenalezen: {self.config_path}")
+
+        logger.info(f"📂 Načítám konfiguraci: {self.config_path}")
+
+        with open(self.config_path, 'r', encoding='utf-8') as f:
+            self.data = yaml.safe_load(f)
+
+        # Validace
+        self.validator.validate(self.data)
+
+        # Doplnění výchozích hodnot
+        self._apply_defaults()
+
+        logger.info(f"✅ Konfigurace načtena: {self.data['country']['name']}")
+
+    def _apply_defaults(self) -> None:
+        """Aplikuje výchozí hodnoty pro chybějící konfigurace."""
         defaults = {
-            'endpoint': 'https://query.wikidata.org/sparql',
-            'timeout': 30,
-            'retry_attempts': 3,
-            'retry_delay': 5,
-            'user_agent': 'WikidataExtractor/1.0',
-            'rate_limit': 60
+            'query_settings': {
+                'endpoint': 'https://query.wikidata.org/sparql',
+                'timeout': 300,
+                'user_agent': 'WikiDataExtractor/1.0',
+                'rate_limit_delay': 1.0,
+                'batch_size': 1000,
+                'retry_attempts': 3
+            },
+            'output': {
+                'encoding': 'utf-8-sig',
+                'delimiter': ',',
+                'include_header': True,
+                'date_format': '%Y-%m-%d',
+                'null_value': ''
+            },
+            'filters': {
+                'min_population': None,
+                'max_population': None,
+                'settlement_types_include': [],
+                'exclude_historical': True,
+                'bounding_box': None
+            }
         }
-        return {**defaults, **self.config.get('api', {})}
-    
-    def get_settlement_types(self) -> List[str]:
-        """Vrátí seznam typů sídel k zahrnutí"""
-        settlement_types = self.config.get('settlement_types', {})
-        include = settlement_types.get('include', ['Q486972'])  # human settlement
-        exclude = settlement_types.get('exclude', [])
-        
-        # Filtrovat vyloučené typy
-        return [t for t in include if t not in exclude]
+
+        for section, values in defaults.items():
+            if section not in self.data:
+                self.data[section] = values
+            else:
+                for key, value in values.items():
+                    if key not in self.data[section]:
+                        self.data[section][key] = value
+
+    def get_data_fields(self) -> List[DataField]:
+        """
+        Vrací seznam datových polí jako DataField objekty.
+
+        Returns:
+            Seznam DataField objektů
+        """
+        fields = []
+        for field_data in self.data.get('data_fields', []):
+            fields.append(DataField(
+                field_name=field_data['field_name'],
+                wikidata_property=field_data['wikidata_property'],
+                required=field_data['required'],
+                output_column=field_data['output_column'],
+                data_type=field_data.get('data_type'),
+                language_filter=field_data.get('language_filter'),
+                description=field_data.get('description')
+            ))
+        return fields
+
+    def get(self, *keys: str, default: Any = None) -> Any:
+        """
+        Získá hodnotu z konfigurace pomocí tečkové notace.
+
+        Args:
+            *keys: Klíče k hodnotě (např. 'country', 'name')
+            default: Výchozí hodnota pokud klíč neexistuje
+
+        Returns:
+            Hodnota z konfigurace nebo default
+        """
+        value = self.data
+        for key in keys:
+            if isinstance(value, dict):
+                value = value.get(key)
+            else:
+                return default
+            if value is None:
+                return default
+        return value
