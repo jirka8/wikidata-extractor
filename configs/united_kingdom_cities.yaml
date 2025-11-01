@@ -1,0 +1,84 @@
+# WikiData Extraktor - Konfigurace pro základní informace o městech ve Spojeném království
+
+country:
+  name: "United Kingdom"
+  wikidata_qid: "Q145"
+  iso_code: "GB"
+  language: "en"
+
+# Hierarchie pro Spojené království
+administrative_hierarchy:
+  - level: 1
+    name: "Constituent Country"
+    wikidata_property: "P131"
+    # Zahrnuje Anglii, Skotsko, Wales, Severní Irsko
+    wikidata_instance_of: "Q333684" 
+  - level: 2
+    name: "County / Region"
+    wikidata_property: "P131"
+    # Zahrnuje různé typy regionů a hrabství napříč UK
+    wikidata_instance_of: 
+      - "Q23397"  # ceremonial county of England
+      - "Q189556" # council area of Scotland
+      - "Q25219"  # principal area of Wales
+
+# Stahovat pouze města a menší města
+settlement_types:
+  - type: "city"
+    wikidata_qid: "Q515"
+    label: "City"
+  - type: "town"
+    wikidata_qid: "Q3957"
+    label: "Town"
+
+data_fields:
+  # Základní identifikátory
+  - field_name: "wikidata_id"
+    wikidata_property: "SUBJECT"
+    required: true
+    output_column: "wikidata_id"
+    description: "WikiData QID of the settlement"
+
+  - field_name: "name_local"
+    wikidata_property: "rdfs:label"
+    language_filter: "en"
+    required: true
+    output_column: "name_en"
+    description: "Name in English"
+
+  - field_name: "coordinates"
+    wikidata_property: "P625"
+    required: false
+    output_column: ["latitude", "longitude"]
+    description: "GPS coordinates"
+
+  - field_name: "population"
+    wikidata_property: "P1082"
+    required: false
+    output_column: "population"
+    data_type: "integer"
+    description: "Population count"
+
+# Filtr, který omezí výsledky pouze na typy uvedené v settlement_types
+filters:
+  settlement_types_include:
+    - "Q515"    # city
+    - "Q3957"   # town
+  exclude_historical: true
+
+output:
+  file_path: "output/united_kingdom_cities.csv"
+  encoding: "utf-8-sig"
+  delimiter: ","
+  include_header: true
+  null_value: ""
+
+query_settings:
+  endpoint: "https://query.wikidata.org/sparql"
+  timeout: 600 # Zvýšený timeout pro větší zemi
+  user_agent: "WikiDataExtractor/1.0 (https://github.com/jirka8/wikidata-extractor)"
+  rate_limit_delay: 1.0
+  retry_attempts: 3
+  # Strategie: stahovat postupně po jednotlivých zemích (Anglie, Skotsko atd.)
+  strategy: "by_admin_level"
+  batch_by_admin_level: 1
