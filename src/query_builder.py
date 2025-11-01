@@ -256,42 +256,44 @@ ORDER BY ?regionLabel
             return f"  OPTIONAL {{ ?settlement wdt:{prop} {var} . }}"
 
     def _build_hierarchy_pattern(self) -> str:
-        """Sestaví pattern pro administrativní hierarchii."""
+        """
+        Sestaví robustní pattern pro administrativní hierarchii pomocí nezávislých OPTIONAL bloků.
+        Tento přístup je odolnější vůči chybám v datech a různým strukturám hierarchie.
+        """
         hierarchy = self.config.get('administrative_hierarchy', default=[])
         if not hierarchy:
             return ''
 
-        patterns = []
-        patterns.append("  # Administrativní hierarchie")
-        patterns.append("  OPTIONAL {")
-
+        patterns = ["\n  # Administrativní hierarchie (robustní metoda)"]
+        
         # Řazení hierarchie podle úrovně
         sorted_hierarchy = sorted(hierarchy, key=lambda x: x['level'])
 
-        # Sestavení vzorů pro každou úroveň
-        prev_var = '?settlement'
-        for i, level_data in enumerate(sorted_hierarchy):
+        for level_data in sorted_hierarchy:
             level = level_data['level']
             prop = level_data['wikidata_property']
             instance_of = level_data.get('wikidata_instance_of')
+            
+            if not instance_of:
+                continue
 
-            current_var = f'?admin{level}'
-
-            # Propojení s předchozí úrovní
-            patterns.append(f"    {prev_var} wdt:{prop} {current_var} .")
-
-            # Instance of constraint
-            if instance_of:
-                if isinstance(instance_of, list):
-                    values = ' '.join([f'wd:{qid}' for qid in instance_of])
-                    patterns.append(f"    {current_var} wdt:P31 ?admin{level}Type .")
-                    patterns.append(f"    VALUES ?admin{level}Type {{ {values} }}")
-                else:
-                    patterns.append(f"    {current_var} wdt:P31 wd:{instance_of} .")
-
-            prev_var = current_var
-
-        patterns.append("  }")
+            admin_var = f'?admin{level}'
+            
+            # Začátek OPTIONAL bloku pro danou úroveň
+            patterns.append(f"  OPTIONAL {{")
+            
+            # Najdi předka pomocí tranzitivní cesty
+            patterns.append(f"    ?settlement {prop}* {admin_var} .")
+            
+            # Ověř, že předek je správného typu (instance of)
+            if isinstance(instance_of, list):
+                values = ' '.join([f'wd:{qid}' for qid in instance_of])
+                patterns.append(f"    {admin_var} wdt:P31 ?admin{level}Type .")
+                patterns.append(f"    VALUES ?admin{level}Type {{ {values} }}")
+            else:
+                patterns.append(f"    {admin_var} wdt:P31 wd:{instance_of} .")
+            
+            patterns.append(f"  }}")
 
         return '\n'.join(patterns)
 
