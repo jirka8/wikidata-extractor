@@ -100,6 +100,30 @@ python wikidata_extractor.py --config configs/france.yaml
 
 Žádné úpravy kódu nejsou potřeba! 🎉
 
+### Vlastní konfigurace pro specifické potřeby
+
+Můžete vytvořit vlastní konfigurace se specifickými poli pro různé účely:
+
+```bash
+# Příklad: Základní informace o českých obcích
+# configs/czech_municipalities_basic.yaml obsahuje pouze:
+# - název obce, souřadnice, okres, kraj, NUTS kód
+
+python wikidata_extractor.py --country czech_municipalities_basic --limit 10
+```
+
+**Výstupní CSV:**
+```csv
+wikidata_id,nazev_obce,latitude,longitude,nuts_kod,admin_level_1,admin_level_2,export_date
+Q1085,Praha,50.0833,14.4167,CZ010,Hlavní město Praha,,2024-11-01
+```
+
+**Výhody custom konfigurací:**
+- 🎯 Pouze data, která skutečně potřebujete
+- ⚡ Rychlejší stahování (méně polí)
+- 📊 Přehlednější výstup
+- 💾 Menší soubory
+
 ### Testování s omezeným počtem výsledků
 
 Pro rychlé testování konfigurace použijte `--limit`:
@@ -298,7 +322,8 @@ wikidata-extractor/
 │   ├── data_processor.py       # Zpracování dat
 │   └── csv_exporter.py         # CSV export
 ├── configs/                    # Konfigurační soubory
-│   ├── czech_republic.yaml
+│   ├── czech_republic.yaml             # ČR - kompletní data
+│   ├── czech_municipalities_basic.yaml # ČR - pouze základní info
 │   ├── slovakia.yaml
 │   ├── poland.yaml
 │   ├── germany.yaml
@@ -342,7 +367,22 @@ python wikidata_extractor.py --country UK --limit 50 --output test_uk.csv
 - 🛠️ Ladění SPARQL dotazů
 - ⏱️ Rychlá iterace při vývoji
 
-### Příklad 4: Export pouze velkých měst
+### Příklad 4: Použití custom konfigurace s omezenými poli
+
+```bash
+# Základní informace o českých obcích (název, GPS, okres, kraj, NUTS)
+python wikidata_extractor.py --country czech_municipalities_basic
+
+# S limitem pro rychlý test
+python wikidata_extractor.py --country czech_municipalities_basic --limit 100 --verbose
+```
+
+**Výhody:**
+- Rychlejší stahování (méně SPARQL polí)
+- Přehlednější výstup (pouze potřebná data)
+- Menší CSV soubory
+
+### Příklad 5: Export pouze velkých měst
 
 V konfiguraci nastavte:
 
@@ -353,7 +393,7 @@ filters:
     - "Q515"  # pouze města
 ```
 
-### Příklad 5: Dry run - zobrazení dotazu
+### Příklad 6: Dry run - zobrazení dotazu
 
 ```bash
 python wikidata_extractor.py --country CZ --dry-run

@@ -1,0 +1,89 @@
+# WikiData Extraktor - České obce - základní informace
+# Pouze: název, souřadnice, okres, kraj, NUTS kód
+
+country:
+  name: "Czech Republic"
+  wikidata_qid: "Q213"
+  iso_code: "CZ"
+  language: "cs"
+
+administrative_hierarchy:
+  - level: 1
+    name: "Kraj"
+    wikidata_property: "P131"
+    wikidata_instance_of: "Q38911"
+  - level: 2
+    name: "Okres"
+    wikidata_property: "P131"
+    wikidata_instance_of: "Q548611"
+
+settlement_types:
+  - type: "city"
+    wikidata_qid: "Q515"
+    label: "Město"
+  - type: "town"
+    wikidata_qid: "Q3957"
+    label: "Městys"
+  - type: "village"
+    wikidata_qid: "Q532"
+    label: "Vesnice"
+  - type: "municipality"
+    wikidata_qid: "Q262166"
+    label: "Obec"
+
+data_fields:
+  # WikiData ID
+  - field_name: "wikidata_id"
+    wikidata_property: "SUBJECT"
+    required: true
+    output_column: "wikidata_id"
+    description: "WikiData QID obce"
+
+  # Název obce
+  - field_name: "name_local"
+    wikidata_property: "rdfs:label"
+    language_filter: "cs"
+    required: true
+    output_column: "nazev_obce"
+    description: "Název obce v češtině"
+
+  # Souřadnice
+  - field_name: "coordinates"
+    wikidata_property: "P625"
+    required: true
+    output_column: ["latitude", "longitude"]
+    description: "GPS souřadnice"
+
+  # NUTS kód
+  - field_name: "nuts_code"
+    wikidata_property: "P605"
+    required: false
+    output_column: "nuts_kod"
+    description: "NUTS statistický kód"
+
+filters:
+  min_population: null
+  max_population: null
+  settlement_types_include:
+    - "Q515"    # city
+    - "Q3957"   # town
+    - "Q532"    # village
+    - "Q262166" # municipality
+  exclude_historical: true
+  bounding_box: null
+
+output:
+  file_path: "output/czech_municipalities_basic.csv"
+  encoding: "utf-8-sig"
+  delimiter: ","
+  include_header: true
+  date_format: "%Y-%m-%d"
+  null_value: ""
+
+query_settings:
+  endpoint: "https://query.wikidata.org/sparql"
+  timeout: 300
+  user_agent: "WikiDataExtractor/1.0 (https://github.com/wikidata-extractor)"
+  rate_limit_delay: 1.0
+  batch_size: 1000
+  retry_attempts: 3
