@@ -9,7 +9,7 @@ import sys
 import argparse
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 import time
 
 # Import modulů
@@ -106,8 +106,7 @@ Příklady použití:
     config_group.add_argument(
         '--country',
         type=str,
-        choices=['CZ', 'SK', 'PL', 'DE', 'UK', 'GB', 'ENG'],
-        help='Rychlá volba země (CZ/SK/PL/DE/UK/GB/ENG)'
+        help='Název konfiguračního souboru (bez .yaml) z adresáře configs/'
     )
 
     # Výstup
@@ -168,30 +167,80 @@ Příklady použití:
         help='Vytvoří sumarizační report'
     )
 
+    parser.add_argument(
+        '--list-configs',
+        action='store_true',
+        help='Zobrazí seznam dostupných konfiguračních souborů'
+    )
+
     return parser.parse_args()
+
+
+def list_available_configs() -> List[str]:
+    """
+    Získá seznam dostupných konfiguračních souborů.
+
+    Returns:
+        Seznam názvů konfiguračních souborů (bez .yaml)
+    """
+    configs_dir = Path('configs')
+    if not configs_dir.exists():
+        return []
+
+    config_files = sorted(configs_dir.glob('*.yaml'))
+    return [f.stem for f in config_files]
 
 
 def get_config_path(country_code: str) -> Path:
     """
-    Získá cestu ke konfiguračnímu souboru pro zemi.
+    Získá cestu ke konfiguračnímu souboru.
+
+    Podporuje:
+    - Přímé názvy souborů (např. 'czech_republic' → configs/czech_republic.yaml)
+    - Zkratky (např. 'CZ' → configs/czech_republic.yaml)
+    - Case-insensitive matching
 
     Args:
-        country_code: Kód země (CZ/SK/PL/DE/UK/GB/ENG)
+        country_code: Název konfiguračního souboru nebo zkratka země
 
     Returns:
         Cesta ke konfiguračnímu souboru
+
+    Raises:
+        FileNotFoundError: Pokud konfigurační soubor neexistuje
     """
-    country_map = {
-        'CZ': 'configs/czech_republic.yaml',
-        'SK': 'configs/slovakia.yaml',
-        'PL': 'configs/poland.yaml',
-        'DE': 'configs/germany.yaml',
-        'UK': 'configs/united_kingdom.yaml',
-        'GB': 'configs/united_kingdom.yaml',  # Alias pro UK
-        'ENG': 'configs/england.yaml'
+    # Mapování běžných zkratek na názvy souborů (pro zpětnou kompatibilitu)
+    shortcuts = {
+        'CZ': 'czech_republic',
+        'SK': 'slovakia',
+        'PL': 'poland',
+        'DE': 'germany',
+        'UK': 'united_kingdom',
+        'GB': 'united_kingdom',
+        'ENG': 'england'
     }
 
-    return Path(country_map.get(country_code, 'config.yaml'))
+    # Pokus o použití zkratky
+    config_name = shortcuts.get(country_code.upper(), country_code)
+
+    # Možné cesty
+    possible_paths = [
+        Path(f'configs/{config_name}.yaml'),
+        Path(f'configs/{config_name.lower()}.yaml'),
+        Path(f'configs/{country_code}.yaml'),
+        Path(f'configs/{country_code.lower()}.yaml')
+    ]
+
+    # Najít první existující soubor
+    for path in possible_paths:
+        if path.exists():
+            return path
+
+    # Pokud soubor neexistuje, zobrazit dostupné konfigurace
+    available = list_available_configs()
+    error_msg = f"Konfigurační soubor pro '{country_code}' nenalezen.\n"
+    error_msg += f"Dostupné konfigurace: {', '.join(available)}"
+    raise FileNotFoundError(error_msg)
 
 
 def main() -> int:
@@ -203,6 +252,36 @@ def main() -> int:
     """
     # Parsování argumentů
     args = parse_arguments()
+
+    # Seznam dostupných konfigurací (nevyžaduje logování)
+    if args.list_configs:
+        available_configs = list_available_configs()
+        print("\n" + "=" * 70)
+        print("Dostupné konfigurace:")
+        print("=" * 70)
+        for config_name in available_configs:
+            print(f"  • {config_name}")
+            # Ukázat jak použít
+            shortcuts_reverse = {
+                'czech_republic': 'CZ',
+                'slovakia': 'SK',
+                'poland': 'PL',
+                'germany': 'DE',
+                'united_kingdom': 'UK nebo GB',
+                'england': 'ENG'
+            }
+            shortcut = shortcuts_reverse.get(config_name)
+            if shortcut:
+                print(f"    Použití: --country {shortcut} nebo --country {config_name}")
+            else:
+                print(f"    Použití: --country {config_name}")
+        print("=" * 70)
+        print("\nPříklady:")
+        print("  python wikidata_extractor.py --country CZ")
+        print("  python wikidata_extractor.py --country czech_republic")
+        print("  python wikidata_extractor.py --config configs/custom_config.yaml")
+        print()
+        return 0
 
     # Nastavení logování
     setup_logging(args.verbose, args.quiet, args.log_file)

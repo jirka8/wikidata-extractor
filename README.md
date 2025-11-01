@@ -35,35 +35,70 @@ pip install -r requirements.txt
 
 ## 📖 Základní použití
 
-### Rychlé použití s předpřipravenými konfiguracemi
+### Seznam dostupných konfigurací
 
 ```bash
-# Česká republika
-python wikidata_extractor.py --country CZ
+# Zobrazit všechny dostupné konfigurace
+python wikidata_extractor.py --list-configs
+```
 
-# Slovensko
-python wikidata_extractor.py --country SK
+### Rychlé použití s předpřipravenými konfiguracemi
 
-# Polsko
-python wikidata_extractor.py --country PL
+Můžete použít buď **zkratky** nebo **plné názvy** konfiguračních souborů:
 
-# Německo
-python wikidata_extractor.py --country DE
+```bash
+# Pomocí zkratek (pro zpětnou kompatibilitu)
+python wikidata_extractor.py --country CZ    # Česká republika
+python wikidata_extractor.py --country SK    # Slovensko
+python wikidata_extractor.py --country PL    # Polsko
+python wikidata_extractor.py --country DE    # Německo
+python wikidata_extractor.py --country UK    # Spojené království
+python wikidata_extractor.py --country GB    # Spojené království (alias)
+python wikidata_extractor.py --country ENG   # Pouze Anglie
 
-# Spojené království (celé UK)
-python wikidata_extractor.py --country UK
-# nebo
-python wikidata_extractor.py --country GB
+# Pomocí plných názvů (doporučeno pro nové konfigurace)
+python wikidata_extractor.py --country czech_republic
+python wikidata_extractor.py --country slovakia
+python wikidata_extractor.py --country united_kingdom
+python wikidata_extractor.py --country england
 
-# Pouze Anglie
-python wikidata_extractor.py --country ENG
+# Case-insensitive
+python wikidata_extractor.py --country CZECH_REPUBLIC
+python wikidata_extractor.py --country Czech_Republic
 ```
 
 ### Použití s vlastní konfigurací
 
 ```bash
+# Absolutní cesta
+python wikidata_extractor.py --config /cesta/k/moje_konfigurace.yaml
+
+# Relativní cesta
 python wikidata_extractor.py --config configs/czech_republic.yaml
 ```
+
+### Přidání nové země (snadné!)
+
+1. Vytvořte nový YAML soubor v adresáři `configs/`:
+
+```bash
+# Například pro Francii
+cp configs/germany.yaml configs/france.yaml
+```
+
+2. Upravte soubor podle potřeby (QID, jazyk, hierarchie)
+
+3. Použijte ho - **bez úpravy hlavního skriptu!**
+
+```bash
+# Pomocí názvu souboru (bez .yaml)
+python wikidata_extractor.py --country france
+
+# Nebo přímou cestou
+python wikidata_extractor.py --config configs/france.yaml
+```
+
+Žádné úpravy kódu nejsou potřeba! 🎉
 
 ### Přizpůsobení výstupu
 
@@ -84,6 +119,9 @@ python wikidata_extractor.py --country CZ --quiet
 ### Speciální režimy
 
 ```bash
+# Seznam všech dostupných konfigurací
+python wikidata_extractor.py --list-configs
+
 # Zobrazení SPARQL dotazu bez spuštění
 python wikidata_extractor.py --config config.yaml --dry-run
 
