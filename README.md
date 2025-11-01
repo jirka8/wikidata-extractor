@@ -100,6 +100,27 @@ python wikidata_extractor.py --config configs/france.yaml
 
 Žádné úpravy kódu nejsou potřeba! 🎉
 
+### Testování s omezeným počtem výsledků
+
+Pro rychlé testování konfigurace použijte `--limit`:
+
+```bash
+# Stáhnout pouze 10 záznamů pro test
+python wikidata_extractor.py --country CZ --limit 10
+
+# Test s 100 záznamy
+python wikidata_extractor.py --country CZ --limit 100 --verbose
+
+# Kombinace s dry-run pro zobrazení SPARQL s LIMITem
+python wikidata_extractor.py --country CZ --limit 50 --dry-run
+```
+
+**Výhody použití --limit:**
+- ⚡ Rychlé testování (sekundy místo minut)
+- 🔍 Kontrola struktury dat
+- 🛠️ Ladění SPARQL dotazů
+- 💾 Šetření zdrojů při vývoji
+
 ### Přizpůsobení výstupu
 
 ```bash
@@ -114,6 +135,9 @@ python wikidata_extractor.py --country CZ --log-file extractor.log
 
 # Tichý režim (pouze chyby)
 python wikidata_extractor.py --country CZ --quiet
+
+# Kombinace parametrů
+python wikidata_extractor.py --country CZ --limit 50 --verbose --output test.csv
 ```
 
 ### Speciální režimy
@@ -302,7 +326,23 @@ Vytvořte vlastní konfigurační soubor (např. `my_config.yaml`) a upravte dle
 python wikidata_extractor.py --config my_config.yaml --verbose
 ```
 
-### Příklad 3: Export pouze velkých měst
+### Příklad 3: Rychlý test s limitovaným počtem výsledků
+
+```bash
+# Rychlý test na 10 záznamech
+python wikidata_extractor.py --country CZ --limit 10 --verbose
+
+# Test konfigurace pro UK na 50 záznamech
+python wikidata_extractor.py --country UK --limit 50 --output test_uk.csv
+```
+
+**Kdy použít --limit:**
+- 🚀 Testování nové konfigurace před plným exportem
+- 🔍 Kontrola struktury výstupních dat
+- 🛠️ Ladění SPARQL dotazů
+- ⏱️ Rychlá iterace při vývoji
+
+### Příklad 4: Export pouze velkých měst
 
 V konfiguraci nastavte:
 
@@ -313,10 +353,13 @@ filters:
     - "Q515"  # pouze města
 ```
 
-### Příklad 4: Dry run - zobrazení dotazu
+### Příklad 5: Dry run - zobrazení dotazu
 
 ```bash
 python wikidata_extractor.py --country CZ --dry-run
+
+# S LIMITem
+python wikidata_extractor.py --country CZ --limit 100 --dry-run
 ```
 
 Zobrazí SPARQL dotaz bez jeho provedení.

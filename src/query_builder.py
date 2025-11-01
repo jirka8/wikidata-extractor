@@ -21,9 +21,12 @@ class SPARQLQueryBuilder:
         self.config = config
         self.data_fields = config.get_data_fields()
 
-    def build_query(self) -> str:
+    def build_query(self, limit: int = None) -> str:
         """
         Sestaví kompletní SPARQL dotaz podle konfigurace.
+
+        Args:
+            limit: Volitelný limit počtu výsledků (pro testování)
 
         Returns:
             SPARQL dotaz jako string
@@ -35,6 +38,9 @@ class SPARQLQueryBuilder:
         where_clause = self._build_where_clause()
         filter_clause = self._build_filter_clause()
 
+        # LIMIT klauzule
+        limit_clause = f"\nLIMIT {limit}" if limit else ""
+
         # Sestavení finálního dotazu
         query = f"""
 {select_clause}
@@ -45,8 +51,11 @@ WHERE {{
     bd:serviceParam wikibase:language "{self.config.get('country', 'language')},en" .
   }}
 }}
-ORDER BY ?settlementLabel
+ORDER BY ?settlementLabel{limit_clause}
 """
+
+        if limit:
+            logger.info(f"⚠️ LIMIT nastaven na {limit} záznamů (testovací režim)")
 
         logger.info(f"✅ SPARQL dotaz sestaven ({len(query)} znaků)")
         return query.strip()

@@ -123,6 +123,13 @@ Příklady použití:
         help='Seznam polí oddělený čárkami (přepíše config)'
     )
 
+    # Limit výsledků
+    parser.add_argument(
+        '--limit',
+        type=int,
+        help='Maximální počet výsledků (pro testování, např. --limit 100)'
+    )
+
     # Logování
     log_group = parser.add_mutually_exclusive_group()
     log_group.add_argument(
@@ -317,7 +324,7 @@ def main() -> int:
         exporter = CSVExporter(config)
 
         # Sestavení SPARQL dotazu
-        sparql_query = query_builder.build_query()
+        sparql_query = query_builder.build_query(limit=args.limit)
 
         # Informace o dotazu
         query_info = query_builder.get_query_info()
