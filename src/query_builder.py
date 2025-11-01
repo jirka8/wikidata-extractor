@@ -106,17 +106,15 @@ ORDER BY ?settlementLabel{limit_clause}
         """
         patterns = []
 
-        # Základní omezení - země
+        # Vždy omezit na zemi pro zrychlení a zpřesnění dotazu
         country_qid = self.config.get('country', 'wikidata_qid')
         patterns.append(f"  ?settlement wdt:P17 wd:{country_qid} .")
 
-        # Omezení na konkrétní administrativní celek (pokud je zadáno)
+        # Pokud je zadán region pro dávkové zpracování, přidat POVINNOU vazbu.
+        # Použije se tranzitivní property path `wdt:P131*`, což znamená "je umístěn v" (přímo nebo nepřímo).
+        # Toto je klíčová oprava, která zajistí, že se stáhnou jen obce z daného kraje.
         if admin_region_qid:
-            batch_level = self.config.get('query_settings', 'batch_by_admin_level')
-            if not batch_level:
-                raise ValueError("Chybí 'batch_by_admin_level' v konfiguraci pro strategii 'by_admin_level'")
-            admin_var = f"?admin{batch_level}"
-            patterns.append(f"  VALUES {admin_var} {{ wd:{admin_region_qid} }}")
+            patterns.append(f"  ?settlement wdt:P131* wd:{admin_region_qid} .")
 
         # Typy sídel
         settlement_types = self.config.get('settlement_types', default=[])
