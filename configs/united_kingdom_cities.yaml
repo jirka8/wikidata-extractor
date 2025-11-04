@@ -111,6 +111,7 @@ query_settings:
   user_agent: "WikiDataExtractor/1.0 (https://github.com/jirka8/wikidata-extractor)"
   rate_limit_delay: 1.0
   retry_attempts: 3
-  # Strategie: stahovat postupně po jednotlivých zemích (Anglie, Skotsko atd.)
+  # Strategie: stahovat postupně po counties/regions (level 2)
+  # Level 2 je vhodnější než level 1, protože England má příliš mnoho sídel
   strategy: "by_admin_level"
-  batch_by_admin_level: 1
+  batch_by_admin_level: 2
