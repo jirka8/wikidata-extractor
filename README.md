@@ -59,7 +59,8 @@ python wikidata_extractor.py --country ENG   # Pouze Anglie
 # Pomocí plných názvů (doporučeno pro nové konfigurace)
 python wikidata_extractor.py --country czech_republic
 python wikidata_extractor.py --country slovakia
-python wikidata_extractor.py --country united_kingdom
+python wikidata_extractor.py --country united_kingdom         # UK - kompletní data
+python wikidata_extractor.py --country united_kingdom_cities  # UK - pouze města (rychlejší)
 python wikidata_extractor.py --country england
 
 # Case-insensitive
@@ -105,14 +106,18 @@ python wikidata_extractor.py --config configs/france.yaml
 Můžete vytvořit vlastní konfigurace se specifickými poli pro různé účely:
 
 ```bash
-# Příklad: Základní informace o českých obcích
+# Příklad 1: Základní informace o českých obcích
 # configs/czech_municipalities_basic.yaml obsahuje pouze:
 # - název obce, souřadnice, okres, kraj, NUTS kód
-
 python wikidata_extractor.py --country czech_municipalities_basic --limit 10
+
+# Příklad 2: Města UK - lightweight konfigurace
+# configs/united_kingdom_cities.yaml obsahuje pouze:
+# - název, souřadnice, populace (pouze města, bez vesnic)
+python wikidata_extractor.py --country united_kingdom_cities --limit 10
 ```
 
-**Výstupní CSV:**
+**Výstupní CSV (czech_municipalities_basic):**
 ```csv
 wikidata_id,nazev_obce,latitude,longitude,nuts_kod,admin_level_1,admin_level_2,export_date
 Q1085,Praha,50.0833,14.4167,CZ010,Hlavní město Praha,,2024-11-01
@@ -282,7 +287,15 @@ query_settings:
   rate_limit_delay: 1.0         # Pauza mezi dotazy (s)
   batch_size: 1000              # Velikost dávky
   retry_attempts: 3             # Počet pokusů při chybě
+  strategy: "by_admin_level"    # Volitelná strategie: dávkové zpracování
+  batch_by_admin_level: 1       # Úroveň pro dávkové zpracování
 ```
+
+**Strategie stahování:**
+- **Standardní** (bez `strategy`): Stáhne všechna data najednou
+- **by_admin_level**: Rozdělí stahování podle administrativních celků (např. kraje, constituent countries)
+  - Výhodné pro velké země (UK, USA) - předchází timeout chybám
+  - `batch_by_admin_level: 1` znamená rozdělení podle první úrovně hierarchie
 
 ## 📊 Dostupné WikiData Properties
 
@@ -327,7 +340,8 @@ wikidata-extractor/
 │   ├── slovakia.yaml
 │   ├── poland.yaml
 │   ├── germany.yaml
-│   ├── united_kingdom.yaml
+│   ├── united_kingdom.yaml             # UK - kompletní data
+│   ├── united_kingdom_cities.yaml      # UK - pouze města (lightweight)
 │   └── england.yaml
 ├── output/                     # Výstupní soubory
 └── examples/                   # Příklady
@@ -491,10 +505,16 @@ Q14960,Brno,Brno,Q515,49.1952,16.6079,380681,237.0,230.19,602 00,https://www.brn
 ### Poznámky k UK/England konfiguracím
 
 **Spojené království (UK)** má specifickou administrativní strukturu:
-- `--country UK` nebo `--country GB` - extrahuje sídla z celého Spojeného království (England, Scotland, Wales, Northern Ireland)
-- `--country ENG` - extrahuje pouze sídla z Anglie
+- `--country united_kingdom` - extrahuje všechna sídla z celého UK (England, Scotland, Wales, Northern Ireland) s kompletními daty
+- `--country united_kingdom_cities` - **lightweight verze** pouze s městy a základními poli (rychlejší stahování)
+- `--country england` - extrahuje pouze sídla z Anglie
 - UK zahrnuje speciální pole jako OS Grid Reference (P613) pro Ordnance Survey souřadnicový systém
 - Administrativní hierarchie je komplexnější kvůli různým systémům v jednotlivých zemích UK
+
+**Dávkové zpracování (batch processing):**
+- UK konfigurace používají strategii `by_admin_level` pro rozdělení stahování podle constituent countries (England, Scotland, Wales, Northern Ireland)
+- Tento přístup zrychluje stahování a předchází timeout chybám
+- Můžete monitorovat průběh zpracování jednotlivých regionů pomocí `--verbose` parametru
 
 ---
 

@@ -12,7 +12,7 @@ administrative_hierarchy:
     name: "Constituent Country"
     wikidata_property: "P131"
     # Zahrnuje Anglii, Skotsko, Wales, Severní Irsko
-    wikidata_instance_of: "Q333684" 
+    wikidata_instance_of: "Q3336843" 
   - level: 2
     name: "County / Region"
     wikidata_property: "P131"
