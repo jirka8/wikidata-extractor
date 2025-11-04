@@ -1,4 +1,13 @@
 # WikiData Extraktor - Konfigurace pro základní informace o sídlech ve Spojeném království
+#
+# UPOZORNĚNÍ: Extrakce dat pro celé Spojené království je velmi náročná kvůli velkému objemu dat.
+# I s omezeními (pouze cities/towns/boroughs) se mohou objevovat Gateway Timeout chyby.
+#
+# DOPORUČENÍ: Pro lepší výsledky použijte specifickou konfiguraci pro jednotlivé země:
+#   - england.yaml pro Anglii (nejkompletnější data s hierarchií)
+#   - Případně vytvořte vlastní konfigurace pro Scotland, Wales, Northern Ireland
+#
+# Tato konfigurace je "lightweight" verze pro rychlé testování nebo základní přehled.
 
 country:
   name: "United Kingdom"
