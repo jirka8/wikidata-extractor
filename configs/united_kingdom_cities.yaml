@@ -7,26 +7,22 @@ country:
   language: "en"
 
 # Hierarchie pro Spojené království
-administrative_hierarchy:
-  - level: 1
-    name: "Constituent Country"
-    wikidata_property: "P131"
-    # Zahrnuje Anglii, Skotsko, Wales, Severní Irsko
-    wikidata_instance_of: "Q3336843" 
-  - level: 2
-    name: "County / Region"
-    wikidata_property: "P131"
-    # Zahrnuje různé typy regionů a hrabství napříč UK
-    wikidata_instance_of:
-      - "Q23397"   # ceremonial county of England
-      - "Q180673"  # non-metropolitan county
-      - "Q349084"  # non-metropolitan district
-      - "Q189556"  # council area of Scotland
-      - "Q25219"   # principal area of Wales
-      - "Q21451629" # metropolitan borough
-      - "Q1187580" # metropolitan district
+# POZOR: Administrativní hierarchie je zakomentována kvůli Gateway Timeout problémům
+# Tranzitivní property paths (wdt:P131*) jsou příliš pomalé pro velké země
+# administrative_hierarchy:
+#   - level: 1
+#     name: "Constituent Country"
+#     wikidata_property: "P131"
+#     wikidata_instance_of: "Q3336843"
+#   - level: 2
+#     name: "County / Region"
+#     wikidata_property: "P131"
+#     wikidata_instance_of:
+#       - "Q23397"   # ceremonial county of England
+#       - "Q189556"  # council area of Scotland
+#       - "Q25219"   # principal area of Wales
 
-# Stahovat města a menší sídla
+# Stahovat města a menší města (bez vesnic a osad - těch jsou desítky tisíc)
 settlement_types:
   - type: "city"
     wikidata_qid: "Q515"
@@ -34,18 +30,19 @@ settlement_types:
   - type: "town"
     wikidata_qid: "Q3957"
     label: "Town"
-  - type: "village"
-    wikidata_qid: "Q532"
-    label: "Village"
-  - type: "hamlet"
-    wikidata_qid: "Q5084"
-    label: "Hamlet"
-  - type: "civil_parish"
-    wikidata_qid: "Q1115575"
-    label: "Civil Parish"
   - type: "borough"
     wikidata_qid: "Q5195043"
     label: "Borough"
+  # Následující typy jsou zakomentovány kvůli příliš velkému objemu dat
+  # - type: "village"
+  #   wikidata_qid: "Q532"
+  #   label: "Village"
+  # - type: "hamlet"
+  #   wikidata_qid: "Q5084"
+  #   label: "Hamlet"
+  # - type: "civil_parish"
+  #   wikidata_qid: "Q1115575"
+  #   label: "Civil Parish"
 
 data_fields:
   # Základní identifikátory
@@ -92,10 +89,11 @@ filters:
   settlement_types_include:
     - "Q515"      # city
     - "Q3957"     # town
-    - "Q532"      # village
-    - "Q5084"     # hamlet
-    - "Q1115575"  # civil parish
     - "Q5195043"  # borough
+    # Villages, hamlets a civil parishes jsou zakomentovány kvůli velkému objemu
+    # - "Q532"      # village
+    # - "Q5084"     # hamlet
+    # - "Q1115575"  # civil parish
   exclude_historical: true
 
 output:
@@ -111,7 +109,7 @@ query_settings:
   user_agent: "WikiDataExtractor/1.0 (https://github.com/jirka8/wikidata-extractor)"
   rate_limit_delay: 1.0
   retry_attempts: 3
-  # Strategie: stahovat postupně po counties/regions (level 2)
-  # Level 2 je vhodnější než level 1, protože England má příliš mnoho sídel
-  strategy: "by_admin_level"
-  batch_by_admin_level: 2
+  # Strategie: single_query - jeden dotaz na celé UK
+  # S omezenými settlement_types (cities/towns/boroughs) by to mělo fungovat
+  # strategy: "by_admin_level"
+  # batch_by_admin_level: 1
