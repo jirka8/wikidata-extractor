@@ -1,4 +1,4 @@
-# WikiData Extraktor - Konfigurace pro základní informace o městech ve Spojeném království
+# WikiData Extraktor - Konfigurace pro základní informace o sídlech ve Spojeném království
 
 country:
   name: "United Kingdom"
@@ -17,12 +17,16 @@ administrative_hierarchy:
     name: "County / Region"
     wikidata_property: "P131"
     # Zahrnuje různé typy regionů a hrabství napříč UK
-    wikidata_instance_of: 
-      - "Q23397"  # ceremonial county of England
-      - "Q189556" # council area of Scotland
-      - "Q25219"  # principal area of Wales
+    wikidata_instance_of:
+      - "Q23397"   # ceremonial county of England
+      - "Q180673"  # non-metropolitan county
+      - "Q349084"  # non-metropolitan district
+      - "Q189556"  # council area of Scotland
+      - "Q25219"   # principal area of Wales
+      - "Q21451629" # metropolitan borough
+      - "Q1187580" # metropolitan district
 
-# Stahovat pouze města a menší města
+# Stahovat města a menší sídla
 settlement_types:
   - type: "city"
     wikidata_qid: "Q515"
@@ -30,6 +34,18 @@ settlement_types:
   - type: "town"
     wikidata_qid: "Q3957"
     label: "Town"
+  - type: "village"
+    wikidata_qid: "Q532"
+    label: "Village"
+  - type: "hamlet"
+    wikidata_qid: "Q5084"
+    label: "Hamlet"
+  - type: "civil_parish"
+    wikidata_qid: "Q1115575"
+    label: "Civil Parish"
+  - type: "borough"
+    wikidata_qid: "Q5195043"
+    label: "Borough"
 
 data_fields:
   # Základní identifikátory
@@ -59,15 +75,31 @@ data_fields:
     data_type: "integer"
     description: "Population count"
 
+  - field_name: "iso_code"
+    wikidata_property: "P300"
+    required: false
+    output_column: "iso_3166_2_code"
+    description: "ISO 3166-2 code"
+
+  - field_name: "toid"
+    wikidata_property: "P3120"
+    required: false
+    output_column: "os_toid"
+    description: "Ordnance Survey TOID"
+
 # Filtr, který omezí výsledky pouze na typy uvedené v settlement_types
 filters:
   settlement_types_include:
-    - "Q515"    # city
-    - "Q3957"   # town
+    - "Q515"      # city
+    - "Q3957"     # town
+    - "Q532"      # village
+    - "Q5084"     # hamlet
+    - "Q1115575"  # civil parish
+    - "Q5195043"  # borough
   exclude_historical: true
 
 output:
-  file_path: "output/united_kingdom_cities.csv"
+  file_path: "output/united_kingdom_settlements.csv"
   encoding: "utf-8-sig"
   delimiter: ","
   include_header: true
